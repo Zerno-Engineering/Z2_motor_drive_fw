@@ -41,6 +41,29 @@
 #define LED_RED_ON()			palSetPad(LED_RED_GPIO, LED_RED_PIN)
 #define LED_RED_OFF()			palClearPad(LED_RED_GPIO, LED_RED_PIN)
 
+#define HW_SW_PORT				GPIOD
+#define HW_SW_PIN				2
+#define HW_MOMENTARY_PORT		GPIOB
+#define HW_MOMENTARY_PIN		6     
+
+// Pin definitions for bit banging purposes
+#define MT6816_MISO_PORT    GPIOB
+#define MT6816_MISO_PIN     7
+#define MT6816_MOSI_PORT    GPIOB
+#define MT6816_MOSI_PIN     9
+#define MT6816_CLK_PORT     GPIOB
+#define MT6816_CLK_PIN      8
+#define MT6816_CS_PORT      GPIOC
+#define MT6816_CS_PIN       15
+
+// MT6816 macros 
+#define MT6816_CLK_HIGH()   palSetPad(MT6816_CLK_PORT, MT6816_CLK_PIN)
+#define MT6816_CLK_LOW()    palClearPad(MT6816_CLK_PORT, MT6816_CLK_PIN)
+#define MT6816_CS_HIGH()    palSetPad(MT6816_CS_PORT, MT6816_CS_PIN)
+#define MT6816_CS_LOW()     palClearPad(MT6816_CS_PORT, MT6816_CS_PIN)
+#define MT6816_MOSI_HIGH()  palSetPad(MT6816_MOSI_PORT, MT6816_MOSI_PIN)
+#define MT6816_MOSI_LOW()   palClearPad(MT6816_MOSI_PORT, MT6816_MOSI_PIN)
+#define MT6816_MISO_READ()  palReadPad(MT6816_MISO_PORT, MT6816_MISO_PIN)
 /*
 // For power stages with enable pins (e.g. DRV8313)
 #define ENABLE_BR1()			palSetPad(GPIOB, 13)
@@ -197,7 +220,6 @@
 #define HW_UART_TX_PIN			10
 #define HW_UART_RX_PORT			GPIOB
 #define HW_UART_RX_PIN			11
-
 
 // ICU Peripheral for servo decoding
 #define HW_USE_SERVO_TIM4
