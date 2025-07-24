@@ -27,6 +27,10 @@
 
 #include <math.h>
 
+THD_FUNCTION(zerno_thread, arg);
+static THD_WORKING_AREA(zerno_thread_wa, 1024);
+static bool zerno_thread_running = false;
+
 // Variables
 static volatile bool i2c_running = false;
 static mutex_t shutdown_mutex;
@@ -122,7 +126,7 @@ void hw_init_gpio(void) {
     palSetPadMode(HW_SHUTDOWN_SENSE_GPIO, HW_SHUTDOWN_SENSE_PIN, PAL_MODE_INPUT);
 
 	// ADC Pins
-	palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG);
+    palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 1, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 2, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 3, PAL_MODE_INPUT_ANALOG);
@@ -131,9 +135,9 @@ void hw_init_gpio(void) {
 
 	// Magnetic encoder pins 
 	palSetPadMode(MT6816_MISO_PORT, MT6816_MISO_PIN, PAL_MODE_INPUT);
-    palSetPadMode(MT6816_MOSI_PORT, MT6816_MOSI_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
-    palSetPadMode(MT6816_CLK_PORT, MT6816_CLK_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
-    palSetPadMode(MT6816_CS_PORT, MT6816_CS_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
+	palSetPadMode(MT6816_MOSI_PORT, MT6816_MOSI_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
+	palSetPadMode(MT6816_CLK_PORT, MT6816_CLK_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
+	palSetPadMode(MT6816_CS_PORT, MT6816_CS_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
 
 	// Switch input pins
 	palSetPadMode(HW_SW_PORT, HW_SW_PIN, PAL_MODE_INPUT_PULLUP);
@@ -153,6 +157,11 @@ void hw_init_gpio(void) {
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, ENABLE);
 	DAC->CR |= DAC_CR_EN1;
 	DAC->DHR12R1 = 2047;
+
+	if (!zerno_thread_running) {
+			chThdCreateStatic(zerno_thread_wa, sizeof(zerno_thread_wa), NORMALPRIO, zerno_thread, NULL);
+			zerno_thread_running = true;
+		}
 
 	terminal_register_command_callback(
 			"shutdown",
@@ -239,6 +248,53 @@ void hw_stop_i2c(void) {
 	}
 
 	i2cReleaseBus(&HW_I2C_DEV);
+}
+
+
+uint16_t mt6816_spi_transfer(uint16_t out) {
+	uint16_t in = 0;
+	for (int i = 15; i >= 0; i--) {
+
+		if (out & (1 << i)) {
+			MT6816_MOSI_HIGH();
+		} else {
+			MT6816_MOSI_LOW();
+		}
+		MT6816_CLK_HIGH();
+		chThdSleepMicroseconds(1);
+		in <<= 1;
+		if (MT6816_MISO_READ()) {
+			in |= 1;
+		}
+		MT6816_CLK_LOW();
+		chThdSleepMicroseconds(1);
+		}
+	return in;
+}
+
+/*
+	Read register from MT6816:
+	According data sheet, the encoder value is 14Bits (16384)
+	and the data structure is shown like this:
+	to send: [R/W:1] [ADRESS = 0b00000011(0x03)] to get that value.
+*/
+uint16_t mt6816_read_register(uint8_t reg_addr) {
+	uint16_t cmd = 0x8000 | ((reg_addr & 0x7F) << 8); // R/W=1, 7-bit addr, rest 0 - prepare the frame to be sent.
+	uint16_t reg_val;
+
+	MT6816_CS_LOW();
+	chThdSleepMicroseconds(1);
+
+	mt6816_spi_transfer(cmd);
+	MT6816_CS_HIGH();
+	chThdSleepMicroseconds(1);
+
+	MT6816_CS_LOW();
+	chThdSleepMicroseconds(1);
+	reg_val = mt6816_spi_transfer(0x0000); // Read response
+	MT6816_CS_HIGH();
+
+	return reg_val;
 }
 
 /**
@@ -332,4 +388,29 @@ static void terminal_button_test(int argc, const char **argv) {
 	//	commands_printf("BT: %d %.2f", HW_SAMPLE_SHUTDOWN(), (double)bt_diff);
 	//	chThdSleepMilliseconds(100);
 	//}
+}
+
+/* This thread is used for magnetic encoder and switch input.
+ */
+THD_FUNCTION(zerno_thread, arg) {
+	(void)arg;
+
+	chRegSetThreadName("ZERNO_drive");
+	chThdSleepMilliseconds(3000);
+
+	uint16_t encoder_max_value = 16384; // 14 bit max value
+	uint16_t encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
+
+	// encoder address
+	uint8_t reg_addr_1 = 0x03; // addres to read the angle from the magnetic encoder.
+	//uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check.
+	//uint8_t reg_adrr_3 = 0x05; // will be used for diagnosed purposes.
+
+	uint16_t encoder_value;
+
+	encoder_value = mt6816_read_register(reg_addr_1);
+	encoder_value = utils_map(encoder_value, encoder_min_value , encoder_max_value , 0.0, 1.0);
+
+	mc_interface_set_current_rel(encoder_value);
+
 }

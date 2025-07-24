@@ -56,7 +56,7 @@
 #define MT6816_CS_PORT      GPIOC
 #define MT6816_CS_PIN       15
 
-// MT6816 macros 
+// MT6816 macros (used for bit banging)
 #define MT6816_CLK_HIGH()   palSetPad(MT6816_CLK_PORT, MT6816_CLK_PIN)
 #define MT6816_CLK_LOW()    palClearPad(MT6816_CLK_PORT, MT6816_CLK_PIN)
 #define MT6816_CS_HIGH()    palSetPad(MT6816_CS_PORT, MT6816_CS_PIN)
@@ -360,5 +360,7 @@
 
 // Functions
 bool hw_sample_shutdown_button(void);
+//uint16_t mt6816_spi_transfer16(uint16_t out);
+//uint16_t mt6816_read_register(uint8_t reg_addr);
 
 #endif/* HW_ZERNO_DRIVE_CORE_H_ */
