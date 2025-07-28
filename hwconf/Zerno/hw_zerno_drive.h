@@ -17,8 +17,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
     */
 
-#ifndef HW_ZERNO_ESC_H_
-#define HW_ZERNO_ESC_H_
+#ifndef HW_ZERNO_DRIVE_H_
+#define HW_ZERNO_DRIVE_H_
 
 #include "hw_zerno_drive_core.h"
 

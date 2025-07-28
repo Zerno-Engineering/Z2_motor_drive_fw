@@ -27,7 +27,7 @@
 
 #include <math.h>
 
-THD_FUNCTION(zerno_thread, arg);
+static THD_FUNCTION(zerno_thread, arg);
 static THD_WORKING_AREA(zerno_thread_wa, 1024);
 static bool zerno_thread_running = false;
 
@@ -47,6 +47,14 @@ static const I2CConfig i2cfg = {
 // Private functions
 static void terminal_shutdown_now(int argc, const char **argv);
 static void terminal_button_test(int argc, const char **argv);
+static void terminal_print_info(int argc, const char **argv);
+
+uint16_t encoder_max_value = 16384; // 14 bit max value
+uint16_t encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
+uint16_t encoder_value_high;
+uint16_t encoder_value_low;
+uint16_t encoder_total_value;
+uint16_t encoder_rotation_check;
 
 void hw_init_gpio(void) {
 	chMtxObjectInit(&shutdown_mutex);
@@ -153,10 +161,10 @@ void hw_init_gpio(void) {
 	palSetPadMode(GPIOC, 4, PAL_MODE_INPUT_ANALOG);
 
 	// DAC as voltage reference for shunt amps
-	palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, ENABLE);
-	DAC->CR |= DAC_CR_EN1;
-	DAC->DHR12R1 = 2047;
+	//palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
+	//RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, ENABLE);
+	//DAC->CR |= DAC_CR_EN1;
+	//DAC->DHR12R1 = 2047;
 
 	if (!zerno_thread_running) {
 			chThdCreateStatic(zerno_thread_wa, sizeof(zerno_thread_wa), NORMALPRIO, zerno_thread, NULL);
@@ -174,6 +182,12 @@ void hw_init_gpio(void) {
 			"Try sampling the shutdown button",
 			0,
 			terminal_button_test);
+
+	terminal_register_command_callback(
+			"encoder_value",
+			"Value",
+			0,
+			terminal_print_info);
 }
 
 void hw_setup_adc_channels(void) {
@@ -260,14 +274,14 @@ uint16_t mt6816_spi_transfer(uint16_t out) {
 		} else {
 			MT6816_MOSI_LOW();
 		}
-		MT6816_CLK_HIGH();
-		chThdSleepMicroseconds(1);
+			MT6816_CLK_HIGH();
+			chThdSleepMicroseconds(1);
 		in <<= 1;
 		if (MT6816_MISO_READ()) {
 			in |= 1;
 		}
-		MT6816_CLK_LOW();
-		chThdSleepMicroseconds(1);
+			MT6816_CLK_LOW();
+			chThdSleepMicroseconds(1);
 		}
 	return in;
 }
@@ -285,14 +299,14 @@ uint16_t mt6816_read_register(uint8_t reg_addr) {
 	MT6816_CS_LOW();
 	chThdSleepMicroseconds(1);
 
-	mt6816_spi_transfer(cmd);
+	reg_val = mt6816_spi_transfer(cmd);
 	MT6816_CS_HIGH();
 	chThdSleepMicroseconds(1);
 
-	MT6816_CS_LOW();
-	chThdSleepMicroseconds(1);
-	reg_val = mt6816_spi_transfer(0x0000); // Read response
-	MT6816_CS_HIGH();
+	//MT6816_CS_LOW();
+	//chThdSleepMicroseconds(1);
+	//reg_val = mt6816_spi_transfer(0x0000); // Read response
+	//MT6816_CS_HIGH();
 
 	return reg_val;
 }
@@ -390,27 +404,41 @@ static void terminal_button_test(int argc, const char **argv) {
 	//}
 }
 
+static void terminal_print_info(int argc, const char **argv) {
+	(void)argc;
+	(void)argv;
+
+	commands_printf("Encoder value: %d", encoder_total_value);
+}
 /* This thread is used for magnetic encoder and switch input.
  */
-THD_FUNCTION(zerno_thread, arg) {
+static THD_FUNCTION(zerno_thread, arg) {
 	(void)arg;
 
-	chRegSetThreadName("ZERNO_drive");
-	chThdSleepMilliseconds(3000);
-
-	uint16_t encoder_max_value = 16384; // 14 bit max value
-	uint16_t encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
+	chRegSetThreadName("zerno_drive");
+	chThdSleepMilliseconds(100);
 
 	// encoder address
 	uint8_t reg_addr_1 = 0x03; // addres to read the angle from the magnetic encoder.
-	//uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check.
-	//uint8_t reg_adrr_3 = 0x05; // will be used for diagnosed purposes.
+	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
+	uint8_t reg_adrr_3 = 0x05; // will be used for diagnosed purposes.
 
-	uint16_t encoder_value;
+	//encoder_value = mt6816_read_register(reg_addr_1);
+	//encoder_value = utils_map(encoder_value, encoder_min_value , encoder_max_value , 0.0, 1.0);
+	for(;;) {
 
-	encoder_value = mt6816_read_register(reg_addr_1);
-	encoder_value = utils_map(encoder_value, encoder_min_value , encoder_max_value , 0.0, 1.0);
+		encoder_value_high = mt6816_read_register(reg_addr_1);
+		encoder_value_low = mt6816_read_register(reg_addr_2);
 
-	mc_interface_set_current_rel(encoder_value);
-
+    // The data is concatenated, since part of the angle information comes in registers 0x03 [13:6] and 0x04 [5:0] to form the 14 bits
+		encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
+		encoder_rotation_check = mt6816_read_register(reg_adrr_3);
+    //MT6816_CS_LOW();
+    //chThdSleepMilliseconds(100);
+    //mc_interface_set_current_rel(encoder_value);
+    //MT6816_MOSI_HIGH();
+	//chThdSleepMilliseconds(50);
+   // MT6816_MOSI_LOW();
+		chThdSleepMilliseconds(20);
+	}
 }
