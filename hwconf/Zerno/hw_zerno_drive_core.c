@@ -24,6 +24,7 @@
 #include "mc_interface.h"
 #include "terminal.h"
 #include "commands.h"
+#include "spi.h"
 
 #include <math.h>
 
@@ -54,7 +55,9 @@ uint16_t encoder_min_value = 0.0; //not sure if will be 0, but need to be tested
 uint16_t encoder_value_high;
 uint16_t encoder_value_low;
 uint16_t encoder_total_value;
-uint16_t encoder_rotation_check;
+uint16_t encoder_magnet_check;
+float_t encoder_rel = 0.0;
+bool is_calibration_done = false ;
 
 void hw_init_gpio(void) {
 	chMtxObjectInit(&shutdown_mutex);
@@ -147,6 +150,7 @@ void hw_init_gpio(void) {
 	palSetPadMode(MT6816_CLK_PORT, MT6816_CLK_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
 	palSetPadMode(MT6816_CS_PORT, MT6816_CS_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
 
+	palSetPad(MT6816_CLK_PORT,MT6816_CLK_PIN); // starts with clock in HIGH state. Otherwise spi (bit banged) won't work.
 	// Switch input pins
 	palSetPadMode(HW_SW_PORT, HW_SW_PIN, PAL_MODE_INPUT_PULLUP);
 	palSetPadMode(HW_MOMENTARY_PORT, HW_MOMENTARY_PIN, PAL_MODE_INPUT_PULLUP);
@@ -264,6 +268,12 @@ void hw_stop_i2c(void) {
 	i2cReleaseBus(&HW_I2C_DEV);
 }
 
+void spi_delay(void) {
+	// ~167ns long..
+	for (volatile int i = 0; i < 500; i++) {
+		__NOP();
+	}
+}
 
 uint16_t mt6816_spi_transfer(uint16_t out) {
 	uint16_t in = 0;
@@ -274,15 +284,15 @@ uint16_t mt6816_spi_transfer(uint16_t out) {
 		} else {
 			MT6816_MOSI_LOW();
 		}
-			MT6816_CLK_HIGH();
-			chThdSleepMicroseconds(1);
+		MT6816_CLK_LOW();
+		spi_delay();
 		in <<= 1;
 		if (MT6816_MISO_READ()) {
 			in |= 1;
 		}
-			MT6816_CLK_LOW();
-			chThdSleepMicroseconds(1);
-		}
+		MT6816_CLK_HIGH();
+		spi_delay();
+	}
 	return in;
 }
 
@@ -297,18 +307,38 @@ uint16_t mt6816_read_register(uint8_t reg_addr) {
 	uint16_t reg_val;
 
 	MT6816_CS_LOW();
-	chThdSleepMicroseconds(1);
-
+	//chThdSleepMicroseconds(1);
 	reg_val = mt6816_spi_transfer(cmd);
 	MT6816_CS_HIGH();
 	chThdSleepMicroseconds(1);
 
 	//MT6816_CS_LOW();
-	//chThdSleepMicroseconds(1);
+	//spi_delay();//chThdSleepMicroseconds(1);
 	//reg_val = mt6816_spi_transfer(0x0000); // Read response
 	//MT6816_CS_HIGH();
 
 	return reg_val;
+}
+
+
+float_t encoder_calibration(uint16_t data_encoder) {
+	float relative;
+	float calibrated_val;
+
+	if(!is_calibration_done) {
+		encoder_min_value = data_encoder;
+		encoder_max_value = 16384;
+		is_calibration_done = true;
+	}
+
+	calibrated_val = (float)(data_encoder-encoder_min_value) ;
+
+	if(calibrated_val < 0) {
+		calibrated_val += encoder_max_value;
+	}
+	relative = calibrated_val/encoder_max_value;//utils_map(calibrated_val, encoder_min_value, encoder_max_value, 0.0, 1.0);
+
+	return relative;
 }
 
 /**
@@ -408,23 +438,27 @@ static void terminal_print_info(int argc, const char **argv) {
 	(void)argc;
 	(void)argv;
 
-	commands_printf("Encoder value: %d", encoder_total_value);
+	if(encoder_magnet_check)
+		commands_printf("NO MAGNET PRESENT");
+	else {
+		commands_printf("Encoder value: %d", encoder_total_value);
+		commands_printf("Encoder rel: %f", (double)encoder_rel);
+		commands_printf("test: %d" , (encoder_max_value + 10));
+	}
 }
+
 /* This thread is used for magnetic encoder and switch input.
  */
 static THD_FUNCTION(zerno_thread, arg) {
 	(void)arg;
 
 	chRegSetThreadName("zerno_drive");
-	chThdSleepMilliseconds(100);
+	chThdSleepMilliseconds(3000);
 
 	// encoder address
 	uint8_t reg_addr_1 = 0x03; // addres to read the angle from the magnetic encoder.
 	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
-	uint8_t reg_adrr_3 = 0x05; // will be used for diagnosed purposes.
 
-	//encoder_value = mt6816_read_register(reg_addr_1);
-	//encoder_value = utils_map(encoder_value, encoder_min_value , encoder_max_value , 0.0, 1.0);
 	for(;;) {
 
 		encoder_value_high = mt6816_read_register(reg_addr_1);
@@ -432,13 +466,10 @@ static THD_FUNCTION(zerno_thread, arg) {
 
     // The data is concatenated, since part of the angle information comes in registers 0x03 [13:6] and 0x04 [5:0] to form the 14 bits
 		encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
-		encoder_rotation_check = mt6816_read_register(reg_adrr_3);
-    //MT6816_CS_LOW();
-    //chThdSleepMilliseconds(100);
-    //mc_interface_set_current_rel(encoder_value);
-    //MT6816_MOSI_HIGH();
-	//chThdSleepMilliseconds(50);
-   // MT6816_MOSI_LOW();
+		encoder_magnet_check = (encoder_value_low & 0x02);
+
+		encoder_rel = encoder_calibration(encoder_total_value);
+
 		chThdSleepMilliseconds(20);
 	}
 }
