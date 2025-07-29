@@ -341,6 +341,20 @@ float_t encoder_calibration(uint16_t data_encoder) {
 	return relative;
 }
 
+bool is_momentary_position(void) {
+	if(palReadPad(HW_MOMENTARY_PORT, HW_MOMENTARY_PIN))
+		return true;
+	else
+		return false;
+}
+
+bool is_main_position(void) {
+	if(palReadPad(HW_SW_PORT, HW_SW_PIN))
+		return true;
+	else
+		return false;
+}
+
 /**
  * Try to restore the i2c bus
  */

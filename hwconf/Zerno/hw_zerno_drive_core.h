@@ -360,6 +360,8 @@
 
 // Functions
 bool hw_sample_shutdown_button(void);
+bool is_momentary_position(void);
+bool is_switch_position(void);
 //uint16_t mt6816_spi_transfer16(uint16_t out);
 //uint16_t mt6816_read_register(uint8_t reg_addr);
 
