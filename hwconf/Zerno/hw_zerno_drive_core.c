@@ -348,7 +348,7 @@ bool is_momentary_position(void) {
 		return false;
 }
 
-bool is_main_position(void) {
+bool is_sw_position(void) {
 	if(palReadPad(HW_SW_PORT, HW_SW_PIN))
 		return true;
 	else
