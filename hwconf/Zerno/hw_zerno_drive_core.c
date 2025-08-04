@@ -28,6 +28,9 @@
 
 #include <math.h>
 
+#define	EEPROM_ADDR_ENCODER_VALUE	2
+#define EEPROM_ADDR_CALIBRATION_CHECK	6
+
 static THD_FUNCTION(zerno_thread, arg);
 static THD_WORKING_AREA(zerno_thread_wa, 1024);
 static bool zerno_thread_running = false;
@@ -51,13 +54,29 @@ static void terminal_button_test(int argc, const char **argv);
 static void terminal_print_info(int argc, const char **argv);
 
 uint16_t encoder_max_value = 16384; // 14 bit max value
-uint16_t encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
+uint16_t encoder_min_value = 0; //not sure if will be 0, but need to be tested in hardware.
 uint16_t encoder_value_high;
 uint16_t encoder_value_low;
 uint16_t encoder_total_value;
 uint16_t encoder_magnet_check;
 float_t encoder_rel = 0.0;
-bool is_calibration_done = false ;
+
+// variable for test purposes
+int calib_aux;
+int32_t encoder_min;
+
+int is_calibration_done = 0 ;
+
+// Define default values before the encoder calibration.
+void define_default_values(void) {
+	eeprom_var default_offset, default_calibration;
+
+	conf_general_read_eeprom_var_hw(&default_offset, EEPROM_ADDR_ENCODER_VALUE);
+	encoder_min = default_offset.as_i32; // encoder_min_value
+
+	conf_general_read_eeprom_var_hw(&default_calibration, EEPROM_ADDR_CALIBRATION_CHECK);
+	calib_aux = default_calibration.as_i32; // is_calibration_done
+}
 
 void hw_init_gpio(void) {
 	chMtxObjectInit(&shutdown_mutex);
@@ -169,6 +188,7 @@ void hw_init_gpio(void) {
 	//RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, ENABLE);
 	//DAC->CR |= DAC_CR_EN1;
 	//DAC->DHR12R1 = 2047;
+	define_default_values();
 
 	if (!zerno_thread_running) {
 			chThdCreateStatic(zerno_thread_wa, sizeof(zerno_thread_wa), NORMALPRIO, zerno_thread, NULL);
@@ -192,6 +212,7 @@ void hw_init_gpio(void) {
 			"Value",
 			0,
 			terminal_print_info);
+
 }
 
 void hw_setup_adc_channels(void) {
@@ -324,21 +345,27 @@ uint16_t mt6816_read_register(uint8_t reg_addr) {
 float_t encoder_calibration(uint16_t data_encoder) {
 	float relative;
 	float calibrated_val;
+    eeprom_var offset_value, calibration_check;
 
-	if(!is_calibration_done) {
-		encoder_min_value = data_encoder;
-		encoder_max_value = 16384;
-		is_calibration_done = true;
-	}
+    if(!is_calibration_done) { // this function needs to be performed with some condition., and executed just once for calibration if needed.
+    	encoder_min_value = data_encoder;
+    	offset_value.as_i32 = encoder_min_value;
+    	conf_general_store_eeprom_var_hw(&offset_value, EEPROM_ADDR_ENCODER_VALUE);
+    	encoder_max_value = 16384;
+    	is_calibration_done = 1;
+    	calibration_check.as_i32 = is_calibration_done;
+    	conf_general_store_eeprom_var_hw(&calibration_check, EEPROM_ADDR_CALIBRATION_CHECK);
+    }
 
-	calibrated_val = (float)(data_encoder-encoder_min_value) ;
+    calibrated_val = (float)(data_encoder-encoder_min_value) ;
 
-	if(calibrated_val < 0) {
+    if(calibrated_val < 0) {
 		calibrated_val += encoder_max_value;
 	}
-	relative = calibrated_val/encoder_max_value;//utils_map(calibrated_val, encoder_min_value, encoder_max_value, 0.0, 1.0);
 
-	return relative;
+    relative = calibrated_val/encoder_max_value;
+
+    return relative;
 }
 
 bool is_momentary_position(void) {
@@ -452,12 +479,21 @@ static void terminal_print_info(int argc, const char **argv) {
 	(void)argc;
 	(void)argv;
 
+	eeprom_var data_stored, check_cal;
+
+	conf_general_read_eeprom_var_hw(&data_stored, EEPROM_ADDR_ENCODER_VALUE);
+	commands_printf("Encoder stored_value: %d", data_stored.as_i32);
+	conf_general_read_eeprom_var_hw(&check_cal, EEPROM_ADDR_CALIBRATION_CHECK);
+	commands_printf("Calibration status: %d", check_cal.as_i32);
+	commands_printf("Initial encoder value:%d", encoder_min);
+	commands_printf("Initial calibration status:%d", calib_aux);
+
+
 	if(encoder_magnet_check)
-		commands_printf("NO MAGNET PRESENT");
+		commands_printf("MAGNET ERROR"); // This can be added as a custom error
 	else {
 		commands_printf("Encoder value: %d", encoder_total_value);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
-		commands_printf("test: %d" , (encoder_max_value + 10));
 	}
 }
 
@@ -470,7 +506,7 @@ static THD_FUNCTION(zerno_thread, arg) {
 	chThdSleepMilliseconds(3000);
 
 	// encoder address
-	uint8_t reg_addr_1 = 0x03; // addres to read the angle from the magnetic encoder.
+	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
 	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
 
 	for(;;) {
@@ -478,11 +514,11 @@ static THD_FUNCTION(zerno_thread, arg) {
 		encoder_value_high = mt6816_read_register(reg_addr_1);
 		encoder_value_low = mt6816_read_register(reg_addr_2);
 
-    // The data is concatenated, since part of the angle information comes in registers 0x03 [13:6] and 0x04 [5:0] to form the 14 bits
+		// The data is concatenated, since part of the angle information comes in registers 0x03 [13:6] and 0x04 [5:0] to form the 14 bits
 		encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
 		encoder_magnet_check = (encoder_value_low & 0x02);
 
-		encoder_rel = encoder_calibration(encoder_total_value);
+		encoder_rel = encoder_calibration(encoder_total_value); // we don't know about the encoder position
 
 		chThdSleepMilliseconds(20);
 	}
