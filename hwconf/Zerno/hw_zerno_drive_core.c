@@ -42,7 +42,7 @@ uint16_t encoder_value_low;
 uint16_t encoder_total_value;
 uint16_t encoder_magnet_check;
 float_t encoder_rel = 0.0;
-
+float encoder_rel_ema;
 
 // variable for test purposes
 int is_calibration_done = 0 ;
@@ -494,7 +494,6 @@ void encoder_calibrate_offset(void) {
 	}
 }
 
-
 static void terminal_print_info(int argc, const char **argv) {
 	(void)argc;
 	(void)argv;
@@ -510,12 +509,12 @@ static void terminal_print_info(int argc, const char **argv) {
 		commands_printf("MAGNET ERROR"); // This can be added as a custom error
 		commands_printf("Encoder value: %d", encoder_total_value);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
-		//commands_printf("EMA filter: %f", (double)encoder_rel_ema);
+		commands_printf("EMA filter: %f", (double)encoder_rel_ema);
 	}
 		else {
 		commands_printf("Encoder value: %d", encoder_total_value);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
-		//commands_printf("EMA filter: %f", (double)encoder_rel_ema);
+		commands_printf("EMA filter: %f", (double)encoder_rel_ema);
 	}
 }
 
@@ -531,6 +530,8 @@ static THD_FUNCTION(zerno_thread, arg) {
 	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
 	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
 
+	float encoder_ema_alpha = 0.6; //smoothing factor. This value can be changed between 0.1 to 1.0..(testing)
+
 	for(;;) {
 
 		encoder_value_high = mt6816_read_register(reg_addr_1);
@@ -542,10 +543,11 @@ static THD_FUNCTION(zerno_thread, arg) {
 
 		if(!encoder_magnet_check && is_sw_position()) {
 			encoder_rel = encoder_relative_val(encoder_total_value);
+			encoder_rel_ema = encoder_ema_alpha * encoder_rel + (1.0 - encoder_ema_alpha) * encoder_rel_ema; // EMA filter for test purposes.
 		}
 		else {
 			encoder_rel = 0.0;
-			//encoder_rel_ema = 0.0;
+			encoder_rel_ema = 0.0;
 		}
 
 		chThdSleepMilliseconds(20);
