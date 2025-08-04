@@ -67,15 +67,119 @@ int32_t encoder_min;
 
 int is_calibration_done = 0 ;
 
-// Define default values before the encoder calibration.
+void spi_delay(void) {
+	// ~167ns long..
+	for (volatile int i = 0; i < 500; i++) {
+		__NOP();
+	}
+}
+
+uint16_t mt6816_spi_transfer(uint16_t out) {
+	uint16_t in = 0;
+	for (int i = 15; i >= 0; i--) {
+
+		if (out & (1 << i)) {
+			MT6816_MOSI_HIGH();
+		} else {
+			MT6816_MOSI_LOW();
+		}
+		MT6816_CLK_LOW();
+		spi_delay();
+		in <<= 1;
+		if (MT6816_MISO_READ()) {
+			in |= 1;
+		}
+		MT6816_CLK_HIGH();
+		spi_delay();
+	}
+	return in;
+}
+
+/*
+	Read register from MT6816:
+	According data sheet, the encoder value is 14Bits (16384)
+	and the data structure is shown like this:
+	to send: [R/W:1] [ADRESS = 0b00000011(0x03)] to get that value.
+*/
+uint16_t mt6816_read_register(uint8_t reg_addr) {
+	uint16_t cmd = 0x8000 | ((reg_addr & 0x7F) << 8); // R/W=1, 7-bit addr, rest 0 - prepare the frame to be sent.
+	uint16_t reg_val;
+
+	MT6816_CS_LOW();
+	//chThdSleepMicroseconds(1);
+	reg_val = mt6816_spi_transfer(cmd);
+	MT6816_CS_HIGH();
+	chThdSleepMicroseconds(1);
+
+	//MT6816_CS_LOW();
+	//spi_delay();//chThdSleepMicroseconds(1);
+	//reg_val = mt6816_spi_transfer(0x0000); // Read response
+	//MT6816_CS_HIGH();
+
+	return reg_val;
+}
+
+float_t encoder_relative_val(uint16_t data_encoder) {
+	float relative;
+	float calibrated_val;
+
+    calibrated_val = (float)(data_encoder-encoder_min_value) ;
+
+    if(calibrated_val < 0) {
+    	calibrated_val += encoder_max_value;
+	}
+
+    relative = calibrated_val/encoder_max_value;
+
+    return relative;
+}
+
+bool is_momentary_position(void) {
+	if(palReadPad(HW_MOMENTARY_PORT, HW_MOMENTARY_PIN))
+		return true;
+	else
+		return false;
+}
+
+bool is_sw_position(void) {
+	if(palReadPad(HW_SW_PORT, HW_SW_PIN))
+		return true;
+	else
+		return false;
+}
+
+/* Load the stored values during boot
+ *
+ */
 void define_default_values(void) {
 	eeprom_var default_offset, default_calibration;
 
 	conf_general_read_eeprom_var_hw(&default_offset, EEPROM_ADDR_ENCODER_VALUE);
-	encoder_min = default_offset.as_i32; // encoder_min_value
+	encoder_min = default_offset.as_i32;
 
 	conf_general_read_eeprom_var_hw(&default_calibration, EEPROM_ADDR_CALIBRATION_CHECK);
 	calib_aux = default_calibration.as_i32; // is_calibration_done
+}
+
+void encoder_calibrate_offset(void) {
+
+	eeprom_var offset_value, calibration_check;
+
+	encoder_value_high = mt6816_read_register(0x03);
+	encoder_value_low = mt6816_read_register(0x04);
+
+	encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
+	encoder_magnet_check = (encoder_value_low & 0x02);
+
+	if(is_momentary_position() && !encoder_magnet_check) { // perform a calibration during boot
+		encoder_min_value = encoder_total_value;
+		offset_value.as_i32 = encoder_min_value;
+		conf_general_store_eeprom_var_hw(&offset_value, EEPROM_ADDR_ENCODER_VALUE);
+		encoder_max_value = 16384;
+		is_calibration_done = 1;
+		calibration_check.as_i32 = is_calibration_done;
+		conf_general_store_eeprom_var_hw(&calibration_check, EEPROM_ADDR_CALIBRATION_CHECK);
+	}
 }
 
 void hw_init_gpio(void) {
@@ -190,6 +294,8 @@ void hw_init_gpio(void) {
 	//DAC->DHR12R1 = 2047;
 	define_default_values();
 
+	encoder_calibrate_offset();
+
 	if (!zerno_thread_running) {
 			chThdCreateStatic(zerno_thread_wa, sizeof(zerno_thread_wa), NORMALPRIO, zerno_thread, NULL);
 			zerno_thread_running = true;
@@ -287,99 +393,6 @@ void hw_stop_i2c(void) {
 	}
 
 	i2cReleaseBus(&HW_I2C_DEV);
-}
-
-void spi_delay(void) {
-	// ~167ns long..
-	for (volatile int i = 0; i < 500; i++) {
-		__NOP();
-	}
-}
-
-uint16_t mt6816_spi_transfer(uint16_t out) {
-	uint16_t in = 0;
-	for (int i = 15; i >= 0; i--) {
-
-		if (out & (1 << i)) {
-			MT6816_MOSI_HIGH();
-		} else {
-			MT6816_MOSI_LOW();
-		}
-		MT6816_CLK_LOW();
-		spi_delay();
-		in <<= 1;
-		if (MT6816_MISO_READ()) {
-			in |= 1;
-		}
-		MT6816_CLK_HIGH();
-		spi_delay();
-	}
-	return in;
-}
-
-/*
-	Read register from MT6816:
-	According data sheet, the encoder value is 14Bits (16384)
-	and the data structure is shown like this:
-	to send: [R/W:1] [ADRESS = 0b00000011(0x03)] to get that value.
-*/
-uint16_t mt6816_read_register(uint8_t reg_addr) {
-	uint16_t cmd = 0x8000 | ((reg_addr & 0x7F) << 8); // R/W=1, 7-bit addr, rest 0 - prepare the frame to be sent.
-	uint16_t reg_val;
-
-	MT6816_CS_LOW();
-	//chThdSleepMicroseconds(1);
-	reg_val = mt6816_spi_transfer(cmd);
-	MT6816_CS_HIGH();
-	chThdSleepMicroseconds(1);
-
-	//MT6816_CS_LOW();
-	//spi_delay();//chThdSleepMicroseconds(1);
-	//reg_val = mt6816_spi_transfer(0x0000); // Read response
-	//MT6816_CS_HIGH();
-
-	return reg_val;
-}
-
-
-float_t encoder_calibration(uint16_t data_encoder) {
-	float relative;
-	float calibrated_val;
-    eeprom_var offset_value, calibration_check;
-
-    if(!is_calibration_done) { // this function needs to be performed with some condition., and executed just once for calibration if needed.
-    	encoder_min_value = data_encoder;
-    	offset_value.as_i32 = encoder_min_value;
-    	conf_general_store_eeprom_var_hw(&offset_value, EEPROM_ADDR_ENCODER_VALUE);
-    	encoder_max_value = 16384;
-    	is_calibration_done = 1;
-    	calibration_check.as_i32 = is_calibration_done;
-    	conf_general_store_eeprom_var_hw(&calibration_check, EEPROM_ADDR_CALIBRATION_CHECK);
-    }
-
-    calibrated_val = (float)(data_encoder-encoder_min_value) ;
-
-    if(calibrated_val < 0) {
-		calibrated_val += encoder_max_value;
-	}
-
-    relative = calibrated_val/encoder_max_value;
-
-    return relative;
-}
-
-bool is_momentary_position(void) {
-	if(palReadPad(HW_MOMENTARY_PORT, HW_MOMENTARY_PIN))
-		return true;
-	else
-		return false;
-}
-
-bool is_sw_position(void) {
-	if(palReadPad(HW_SW_PORT, HW_SW_PIN))
-		return true;
-	else
-		return false;
 }
 
 /**
@@ -489,9 +502,12 @@ static void terminal_print_info(int argc, const char **argv) {
 	commands_printf("Initial calibration status:%d", calib_aux);
 
 
-	if(encoder_magnet_check)
+	if(encoder_magnet_check) {
 		commands_printf("MAGNET ERROR"); // This can be added as a custom error
-	else {
+		commands_printf("Encoder value: %d", encoder_total_value);
+		commands_printf("Encoder rel: %f", (double)encoder_rel);
+	}
+		else {
 		commands_printf("Encoder value: %d", encoder_total_value);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
 	}
@@ -518,7 +534,12 @@ static THD_FUNCTION(zerno_thread, arg) {
 		encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
 		encoder_magnet_check = (encoder_value_low & 0x02);
 
-		encoder_rel = encoder_calibration(encoder_total_value); // we don't know about the encoder position
+		if(!encoder_magnet_check && is_sw_position()) { //
+			encoder_rel = encoder_relative_val(encoder_total_value);
+		}
+		else {
+			encoder_rel = 0.0;
+		}
 
 		chThdSleepMilliseconds(20);
 	}
