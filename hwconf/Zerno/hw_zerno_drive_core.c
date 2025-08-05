@@ -435,11 +435,11 @@ float_t encoder_relative_val(uint16_t data_encoder) {
 	float relative;
 	float calibrated_val;
 
-    calibrated_val = (float)(data_encoder-encoder_min_value) ;
+	calibrated_val = (float)(data_encoder-encoder_min_value) ;
 
     if(calibrated_val < 0) {
     	calibrated_val += encoder_max_value;
-	}
+    }
 
     relative = calibrated_val/encoder_max_value;
 
@@ -552,7 +552,7 @@ static THD_FUNCTION(zerno_thread, arg) {
 		encoder_magnet_check = (encoder_value_low & 0x02);
 
 		// add a parity check here!.
-		if(!encoder_magnet_check && is_sw_position()) {
+		if(!encoder_magnet_check && is_sw_position() && is_calibration_done) {
 			encoder_rel = encoder_relative_val(encoder_total_value);
 			encoder_rel_ema = encoder_ema_alpha * encoder_rel + (1.0 - encoder_ema_alpha) * encoder_rel_ema; // EMA filter for test purposes.
 		}
