@@ -494,6 +494,16 @@ void encoder_calibrate_offset(void) {
 	}
 }
 
+bool is_magnet_ok(void) {
+
+	if(encoder_magnet_check) {
+		mc_interface_set_fault_info("FAULT_ENCODER_NO_MAGNET", 0, 0, 0);
+		return true;
+	}
+	else
+		return false;
+}
+
 static void terminal_print_info(int argc, const char **argv) {
 	(void)argc;
 	(void)argv;
@@ -541,6 +551,7 @@ static THD_FUNCTION(zerno_thread, arg) {
 		encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
 		encoder_magnet_check = (encoder_value_low & 0x02);
 
+		// add a parity check here!.
 		if(!encoder_magnet_check && is_sw_position()) {
 			encoder_rel = encoder_relative_val(encoder_total_value);
 			encoder_rel_ema = encoder_ema_alpha * encoder_rel + (1.0 - encoder_ema_alpha) * encoder_rel_ema; // EMA filter for test purposes.

@@ -64,6 +64,8 @@
 #define MT6816_MOSI_HIGH()  palSetPad(MT6816_MOSI_PORT, MT6816_MOSI_PIN)
 #define MT6816_MOSI_LOW()   palClearPad(MT6816_MOSI_PORT, MT6816_MOSI_PIN)
 #define MT6816_MISO_READ()  palReadPad(MT6816_MISO_PORT, MT6816_MISO_PIN)
+
+#define IS_DRV_FAULT()		is_magnet_ok()
 /*
 // For power stages with enable pins (e.g. DRV8313)
 #define ENABLE_BR1()			palSetPad(GPIOB, 13)
@@ -362,6 +364,7 @@
 bool hw_sample_shutdown_button(void);
 bool is_momentary_position(void);
 bool is_sw_position(void);
+bool is_magnet_ok(void);
 //uint16_t mt6816_spi_transfer16(uint16_t out);
 //uint16_t mt6816_read_register(uint8_t reg_addr);
 
