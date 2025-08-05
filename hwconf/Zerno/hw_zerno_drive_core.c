@@ -437,27 +437,21 @@ float_t encoder_relative_val(uint16_t data_encoder) {
 
 	calibrated_val = (float)(data_encoder-encoder_min_value) ;
 
-    if(calibrated_val < 0) {
-    	calibrated_val += encoder_max_value;
-    }
+	if(calibrated_val < 0) {
+		calibrated_val += encoder_max_value;
+	}
 
-    relative = calibrated_val/encoder_max_value;
+	relative = calibrated_val/encoder_max_value;
 
-    return relative;
+	return relative;
 }
 
 bool is_momentary_position(void) {
-	if(palReadPad(HW_MOMENTARY_PORT, HW_MOMENTARY_PIN))
-		return true;
-	else
-		return false;
+	return (bool)palReadPad(HW_MOMENTARY_PORT, HW_MOMENTARY_PIN);
 }
 
 bool is_sw_position(void) {
-	if(palReadPad(HW_SW_PORT, HW_SW_PIN))
-		return true;
-	else
-		return false;
+	return (bool)palReadPad(HW_SW_PORT, HW_SW_PIN);
 }
 
 /* Load the stored values during boot
