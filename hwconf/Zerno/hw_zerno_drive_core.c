@@ -205,7 +205,7 @@ void hw_init_gpio(void) {
 			terminal_button_test);
 
 	terminal_register_command_callback(
-			"encoder_value",
+			"encoder_status",
 			"Value",
 			0,
 			terminal_print_info);
@@ -505,17 +505,18 @@ static void terminal_print_info(int argc, const char **argv) {
 	eeprom_var data_stored, check_cal;
 
 	conf_general_read_eeprom_var_hw(&data_stored, EEPROM_ADDR_ENCODER_VALUE);
-	commands_printf("Encoder stored_value: %d", data_stored.as_i32);
+	commands_printf("Encoder stored value: %d", data_stored.as_i32);
 	conf_general_read_eeprom_var_hw(&check_cal, EEPROM_ADDR_CALIBRATION_CHECK);
 	commands_printf("Calibration status: %d", check_cal.as_i32);
 
 	if(encoder_magnet_check) {
-		commands_printf("MAGNET ERROR"); // This can be added as a custom error
+		commands_printf("Magnet status: MAGNET ERROR"); // This can be added as a custom error
 		commands_printf("Encoder value: %d", encoder_total_value);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
 		commands_printf("EMA filter: %f", (double)encoder_rel_ema);
 	}
 		else {
+	    commands_printf("Magnet status: MAGNET OK");
 		commands_printf("Encoder value: %d", encoder_total_value);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
 		commands_printf("EMA filter: %f", (double)encoder_rel_ema);

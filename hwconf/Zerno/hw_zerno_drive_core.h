@@ -28,6 +28,7 @@
 #define HW_HAS_3_SHUNTS
 //#define HW_HAS_PHASE_SHUNTS
 #define HW_HAS_PHASE_FILTERS
+#define HW_HAS_NO_CAN
 //#define HW_HAS_DRV8313
 
 // Macros
@@ -47,14 +48,14 @@
 #define HW_MOMENTARY_PIN		6     
 
 // Pin definitions for bit banging purposes
-#define MT6816_MISO_PORT	GPIOC
-#define MT6816_MISO_PIN     11
-#define MT6816_MOSI_PORT    GPIOC
-#define MT6816_MOSI_PIN     12
-#define MT6816_CLK_PORT		GPIOC
-#define MT6816_CLK_PIN      10
-#define MT6816_CS_PORT		GPIOA
-#define MT6816_CS_PIN       4
+#define MT6816_MISO_PORT	GPIOB
+#define MT6816_MISO_PIN		7
+#define MT6816_MOSI_PORT	GPIOB
+#define MT6816_MOSI_PIN		9
+#define MT6816_CLK_PORT		GPIOB
+#define MT6816_CLK_PIN		8
+#define MT6816_CS_PORT		GPIOC
+#define MT6816_CS_PIN		14
 
 // MT6816 macros (used for bit banging)
 #define MT6816_CLK_HIGH()   palSetPad(MT6816_CLK_PORT, MT6816_CLK_PIN)
@@ -122,7 +123,7 @@
 
 // ZCD en
 #define ZCD_GPIO				GPIOC
-#define ZCD_PIN					14
+#define ZCD_PIN					13
 
 // CAN en
 #define CAN_EN_GPIO				GPIOB
