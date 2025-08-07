@@ -56,6 +56,7 @@ void define_default_values(void);
 void encoder_calibrate_offset(void);
 
 bool is_pfc_ok(void);
+float get_pfc_temp(void);
 
 // Variables
 static volatile bool i2c_running = false;
@@ -186,7 +187,7 @@ void hw_init_gpio(void) {
 	palSetPadMode(GPIOC, 4, PAL_MODE_INPUT_ANALOG);
 
 	// DAC as voltage reference for shunt amps
-	//palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
+	palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
 	//RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, ENABLE);
 	//DAC->CR |= DAC_CR_EN1;
 	//DAC->DHR12R1 = 2047;
@@ -231,6 +232,7 @@ void hw_setup_adc_channels(void) {
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 3, ADC_SampleTime_15Cycles);
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_14, 4, ADC_SampleTime_15Cycles);
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_Vrefint, 5, ADC_SampleTime_15Cycles);
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_4, 6, ADC_SampleTime_15Cycles); // PA4 PFC temperature.
 	//ADC_RegularChannelConfig(ADC1, ADC_Channel_8, 6, ADC_SampleTime_15Cycles);
 
 	// ADC2 regular channels
@@ -511,6 +513,14 @@ bool is_magnet_ok(void) {
 	}
 	else
 		return false;
+}
+
+float get_pfc_temp(void) {
+	static float temp_pfc_filtered = 0.0;
+
+	float temp_pfc = (1.0 / ((logf(NTC_RES(ADC_Value[ADC_IND_TEMP_MOS_2]) / 10000.0) / 3455.0) + (1.0 / 298.15)) - 273.15);
+	UTILS_LP_FAST(temp_pfc_filtered, temp_pfc, 0.1);
+	return temp_pfc_filtered;
 }
 
 static void terminal_print_info(int argc, const char **argv) {
