@@ -55,6 +55,8 @@ void spi_delay(void);
 void define_default_values(void);
 void encoder_calibrate_offset(void);
 
+bool is_pfc_ok(void);
+
 // Variables
 static volatile bool i2c_running = false;
 static mutex_t shutdown_mutex;
@@ -191,6 +193,11 @@ void hw_init_gpio(void) {
 	define_default_values();
 
 	encoder_calibrate_offset();
+
+	if(is_pfc_ok())
+		palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
+	else
+		palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
 	if (!zerno_thread_running) {
 			chThdCreateStatic(zerno_thread_wa, sizeof(zerno_thread_wa), NORMALPRIO, zerno_thread, NULL);
@@ -516,6 +523,11 @@ static void terminal_print_info(int argc, const char **argv) {
 	commands_printf("Encoder stored value: %d", data_stored.as_i32);
 	conf_general_read_eeprom_var_hw(&check_cal, EEPROM_ADDR_CALIBRATION_CHECK);
 	commands_printf("Calibration status: %d", check_cal.as_i32);
+
+	if(is_pfc_ok()) // test purposes
+		commands_printf("PFC status: OK");
+	else
+		commands_printf("PFC status: ERROR");
 
 	if(encoder_magnet_check) {
 		commands_printf("Magnet status: MAGNET ERROR"); // This can be added as a custom error
