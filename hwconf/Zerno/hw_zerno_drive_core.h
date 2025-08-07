@@ -66,6 +66,12 @@
 #define MT6816_MOSI_LOW()   palClearPad(MT6816_MOSI_PORT, MT6816_MOSI_PIN)
 #define MT6816_MISO_READ()  palReadPad(MT6816_MISO_PORT, MT6816_MISO_PIN)
 
+// PFC status and enables pin
+#define PFC_STATUS_PORT		GPIOB
+#define PFC_STATUS_PIN		0
+#define PFC_ENABLE_PORT		GPIOC
+#define PFC_ENABLE_PIN		5
+
 #define IS_DRV_FAULT()		is_magnet_ok()
 /*
 // For power stages with enable pins (e.g. DRV8313)

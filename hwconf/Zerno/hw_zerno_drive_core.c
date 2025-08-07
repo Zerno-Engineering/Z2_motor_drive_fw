@@ -165,9 +165,14 @@ void hw_init_gpio(void) {
 	palSetPadMode(MT6816_CS_PORT, MT6816_CS_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
 
 	palSetPad(MT6816_CLK_PORT,MT6816_CLK_PIN); // starts with clock in HIGH state. Otherwise spi (bit banged) won't work.
+
 	// Switch input pins
 	palSetPadMode(HW_SW_PORT, HW_SW_PIN, PAL_MODE_INPUT_PULLUP);
 	palSetPadMode(HW_MOMENTARY_PORT, HW_MOMENTARY_PIN, PAL_MODE_INPUT_PULLUP);
+
+	// PFC interface signals
+	palSetPadMode(PFC_STATUS_PORT, PFC_STATUS_PIN, PAL_MODE_OUTPUT_PUSHPULL);
+	palSetPadMode(PFC_ENABLE_PORT, PFC_ENABLE_PIN, PAL_MODE_INPUT);
 
 	//palSetPadMode(GPIOB, 0, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOB, 1, PAL_MODE_INPUT_ANALOG);
@@ -454,6 +459,9 @@ bool is_sw_position(void) {
 	return (bool)palReadPad(HW_SW_PORT, HW_SW_PIN);
 }
 
+bool is_pfc_ok(void) {
+	return (bool)palReadPad(PFC_STATUS_PORT, PFC_STATUS_PIN);
+}
 /* Load the stored values during boot
  *
  */
@@ -547,15 +555,16 @@ static THD_FUNCTION(zerno_thread, arg) {
 		encoder_magnet_check = (encoder_value_low & 0x02);
 
 		// add a parity check here!.
-		if(!encoder_magnet_check && is_sw_position() && is_calibration_done) {
+		if(!encoder_magnet_check && is_sw_position() && is_calibration_done && is_pfc_ok()) {
+			palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 			encoder_rel = encoder_relative_val(encoder_total_value);
 			encoder_rel_ema = encoder_ema_alpha * encoder_rel + (1.0 - encoder_ema_alpha) * encoder_rel_ema; // EMA filter for test purposes.
 		}
 		else {
+			palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 			encoder_rel = 0.0;
 			encoder_rel_ema = 0.0;
 		}
-
 		chThdSleepMilliseconds(20);
 	}
 }
