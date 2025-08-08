@@ -72,7 +72,7 @@
 #define PFC_ENABLE_PORT		GPIOC
 #define PFC_ENABLE_PIN		5
 
-#define IS_DRV_FAULT()		is_magnet_ok()
+#define IS_DRV_FAULT()		is_hw_fault()
 /*
 // For power stages with enable pins (e.g. DRV8313)
 #define ENABLE_BR1()			palSetPad(GPIOB, 13)
@@ -213,6 +213,9 @@
 
 #define NTC_RES_MOTOR(adc_val)	(10000.0 / ((4095.0 / (float)adc_val) - 1.0))
 #define NTC_TEMP_MOTOR(beta)	(1.0 / ((logf(NTC_RES_MOTOR(ADC_Value[ADC_IND_TEMP_MOTOR]) / 10000.0) / beta) + (1.0 / 298.15)) - 273.15)
+
+// log PFC temperature data
+#define NTC_TEMP_MOS2()			get_pfc_temp()
 
 // Voltage on ADC channel
 #define ADC_VOLTS(ch)			((float)ADC_Value[ch] / 4096.0 * V_REG)
@@ -372,7 +375,8 @@
 bool hw_sample_shutdown_button(void);
 bool is_momentary_position(void);
 bool is_sw_position(void);
-bool is_magnet_ok(void);
+bool is_hw_fault(void);
+float get_pfc_temp(void);
 //uint16_t mt6816_spi_transfer16(uint16_t out);
 //uint16_t mt6816_read_register(uint8_t reg_addr);
 

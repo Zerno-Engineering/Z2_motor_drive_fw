@@ -25,22 +25,22 @@
 
 // Motor Current Max
 #ifndef MCCONF_L_CURRENT_MAX
-#define MCCONF_L_CURRENT_MAX 20
+#define MCCONF_L_CURRENT_MAX 4
 #endif
 
 // Motor Current Max Brake
 #ifndef MCCONF_L_CURRENT_MIN
-#define MCCONF_L_CURRENT_MIN -20
+#define MCCONF_L_CURRENT_MIN -4
 #endif
 
 // Battery Current Max
 #ifndef MCCONF_L_IN_CURRENT_MAX
-#define MCCONF_L_IN_CURRENT_MAX 20
+#define MCCONF_L_IN_CURRENT_MAX 4
 #endif
 
 // Battery Current Max Regen
 #ifndef MCCONF_L_IN_CURRENT_MIN
-#define MCCONF_L_IN_CURRENT_MIN -20
+#define MCCONF_L_IN_CURRENT_MIN -4
 #endif
 
 // Input Current Limit Map Start
@@ -50,12 +50,12 @@
 
 // Input Current Map Filter
 #ifndef MCCONF_L_IN_CURRENT_MAP_FILTER
-#define MCCONF_L_IN_CURRENT_MAP_FILTER 1
+#define MCCONF_L_IN_CURRENT_MAP_FILTER 0.005
 #endif
 
 // Absolute Maximum Current
 #ifndef MCCONF_L_MAX_ABS_CURRENT
-#define MCCONF_L_MAX_ABS_CURRENT 34.34
+#define MCCONF_L_MAX_ABS_CURRENT 6
 #endif
 
 // Max ERPM Reverse
@@ -65,12 +65,12 @@
 
 // Max ERPM
 #ifndef MCCONF_L_RPM_MAX
-#define MCCONF_L_RPM_MAX 200000
+#define MCCONF_L_RPM_MAX 60000
 #endif
 
 // ERPM Limit Start
 #ifndef MCCONF_L_RPM_START
-#define MCCONF_L_RPM_START 0.8
+#define MCCONF_L_RPM_START 0.85
 #endif
 
 // Max ERPM Full Brake
@@ -85,32 +85,32 @@
 
 // Minimum Input Voltage
 #ifndef MCCONF_L_MIN_VOLTAGE
-#define MCCONF_L_MIN_VOLTAGE 8
+#define MCCONF_L_MIN_VOLTAGE 350
 #endif
 
 // Maximum Input Voltage
 #ifndef MCCONF_L_MAX_VOLTAGE
-#define MCCONF_L_MAX_VOLTAGE 26
+#define MCCONF_L_MAX_VOLTAGE 430
 #endif
 
 // Battery Voltage Cutoff Start
 #ifndef MCCONF_L_BATTERY_CUT_START
-#define MCCONF_L_BATTERY_CUT_START 20.4
+#define MCCONF_L_BATTERY_CUT_START 10
 #endif
 
 // Battery Voltage Cutoff End
 #ifndef MCCONF_L_BATTERY_CUT_END
-#define MCCONF_L_BATTERY_CUT_END 18.6
+#define MCCONF_L_BATTERY_CUT_END 8
 #endif
 
 // Battery Voltage Regen Cutoff Start
 #ifndef MCCONF_L_BATTERY_REGEN_CUT_START
-#define MCCONF_L_BATTERY_REGEN_CUT_START 25.5
+#define MCCONF_L_BATTERY_REGEN_CUT_START 1000
 #endif
 
 // Battery Voltage Regen Cutoff End
 #ifndef MCCONF_L_BATTERY_REGEN_CUT_END
-#define MCCONF_L_BATTERY_REGEN_CUT_END 26
+#define MCCONF_L_BATTERY_REGEN_CUT_END 1100
 #endif
 
 // Slow ABS Current Limit
@@ -175,7 +175,7 @@
 
 // Duty Cycle Current Limit Start
 #ifndef MCCONF_L_DUTY_START
-#define MCCONF_L_DUTY_START 0.85
+#define MCCONF_L_DUTY_START 1
 #endif
 
 // Minimum ERPM
@@ -260,17 +260,17 @@
 
 // Current KP
 #ifndef MCCONF_FOC_CURRENT_KP
-#define MCCONF_FOC_CURRENT_KP 0.1148
+#define MCCONF_FOC_CURRENT_KP 23.0714
 #endif
 
 // Current KI
 #ifndef MCCONF_FOC_CURRENT_KI
-#define MCCONF_FOC_CURRENT_KI 152.61
+#define MCCONF_FOC_CURRENT_KI 9064.25
 #endif
 
 // Zero Vector Frequency
 #ifndef MCCONF_FOC_F_ZV
-#define MCCONF_FOC_F_ZV 25000
+#define MCCONF_FOC_F_ZV 30000
 #endif
 
 // Dead Time Compensation
@@ -295,7 +295,7 @@
 
 // Sensor Mode
 #ifndef MCCONF_FOC_SENSOR_MODE
-#define MCCONF_FOC_SENSOR_MODE 2
+#define MCCONF_FOC_SENSOR_MODE 0
 #endif
 
 // Speed Tracker Kp
@@ -310,27 +310,27 @@
 
 // Motor Inductance (L)
 #ifndef MCCONF_FOC_MOTOR_L
-#define MCCONF_FOC_MOTOR_L 0.00011483
+#define MCCONF_FOC_MOTOR_L 0.00461428
 #endif
 
 // Motor Inductance Difference (Lq - Ld)
 #ifndef MCCONF_FOC_MOTOR_LD_LQ_DIFF
-#define MCCONF_FOC_MOTOR_LD_LQ_DIFF 4.210e-05
+#define MCCONF_FOC_MOTOR_LD_LQ_DIFF 0.0001172
 #endif
 
 // Motor Resistance (R)
 #ifndef MCCONF_FOC_MOTOR_R
-#define MCCONF_FOC_MOTOR_R 0.1526
+#define MCCONF_FOC_MOTOR_R 1.81285
 #endif
 
 // Motor Flux Linkage (λ)
 #ifndef MCCONF_FOC_MOTOR_FLUX_LINKAGE
-#define MCCONF_FOC_MOTOR_FLUX_LINKAGE 0.005908
+#define MCCONF_FOC_MOTOR_FLUX_LINKAGE 0.013088
 #endif
 
 // Observer Gain (x1M)
 #ifndef MCCONF_FOC_OBSERVER_GAIN
-#define MCCONF_FOC_OBSERVER_GAIN 2.865e+07
+#define MCCONF_FOC_OBSERVER_GAIN 5.84e+06
 #endif
 
 // Observer Gain At Minimum Duty
@@ -345,12 +345,12 @@
 
 // Duty Downramp Kp
 #ifndef MCCONF_FOC_DUTY_DOWNRAMP_KP
-#define MCCONF_FOC_DUTY_DOWNRAMP_KP 10
+#define MCCONF_FOC_DUTY_DOWNRAMP_KP 50
 #endif
 
 // Duty Downramp Ki
 #ifndef MCCONF_FOC_DUTY_DOWNRAMP_KI
-#define MCCONF_FOC_DUTY_DOWNRAMP_KI 200
+#define MCCONF_FOC_DUTY_DOWNRAMP_KI 1000
 #endif
 
 // Start Current Decrease
@@ -360,17 +360,17 @@
 
 // Start Current Decrease ERPM
 #ifndef MCCONF_FOC_START_CURR_DEC_RPM
-#define MCCONF_FOC_START_CURR_DEC_RPM 400
+#define MCCONF_FOC_START_CURR_DEC_RPM 2500
 #endif
 
 // Openloop ERPM
 #ifndef MCCONF_FOC_OPENLOOP_RPM
-#define MCCONF_FOC_OPENLOOP_RPM 400
+#define MCCONF_FOC_OPENLOOP_RPM 1500
 #endif
 
 // Openloop ERPM at Min Current
 #ifndef MCCONF_FOC_OPENLOOP_RPM_LOW
-#define MCCONF_FOC_OPENLOOP_RPM_LOW 0.1
+#define MCCONF_FOC_OPENLOOP_RPM_LOW 0
 #endif
 
 // D Axis Gain Scaling Start
@@ -395,12 +395,12 @@
 
 // Openloop Ramp Time
 #ifndef MCCONF_FOC_SL_OPENLOOP_T_RAMP
-#define MCCONF_FOC_SL_OPENLOOP_T_RAMP 0
+#define MCCONF_FOC_SL_OPENLOOP_T_RAMP 0.1
 #endif
 
 // Openloop Time
 #ifndef MCCONF_FOC_SL_OPENLOOP_TIME
-#define MCCONF_FOC_SL_OPENLOOP_TIME 0.1
+#define MCCONF_FOC_SL_OPENLOOP_TIME 0.05
 #endif
 
 // Openloop Current Boost
@@ -420,32 +420,32 @@
 
 // Hall Table [1]
 #ifndef MCCONF_FOC_HALL_TAB_1
-#define MCCONF_FOC_HALL_TAB_1 93
+#define MCCONF_FOC_HALL_TAB_1 255
 #endif
 
 // Hall Table [2]
 #ifndef MCCONF_FOC_HALL_TAB_2
-#define MCCONF_FOC_HALL_TAB_2 161
+#define MCCONF_FOC_HALL_TAB_2 255
 #endif
 
 // Hall Table [3]
 #ifndef MCCONF_FOC_HALL_TAB_3
-#define MCCONF_FOC_HALL_TAB_3 126
+#define MCCONF_FOC_HALL_TAB_3 255
 #endif
 
 // Hall Table [4]
 #ifndef MCCONF_FOC_HALL_TAB_4
-#define MCCONF_FOC_HALL_TAB_4 26
+#define MCCONF_FOC_HALL_TAB_4 255
 #endif
 
 // Hall Table [5]
 #ifndef MCCONF_FOC_HALL_TAB_5
-#define MCCONF_FOC_HALL_TAB_5 61
+#define MCCONF_FOC_HALL_TAB_5 255
 #endif
 
 // Hall Table [6]
 #ifndef MCCONF_FOC_HALL_TAB_6
-#define MCCONF_FOC_HALL_TAB_6 193
+#define MCCONF_FOC_HALL_TAB_6 255
 #endif
 
 // Hall Table [7]
@@ -460,7 +460,7 @@
 
 // Sensored ERPM Start
 #ifndef MCCONF_FOC_SL_ERPM_START
-#define MCCONF_FOC_SL_ERPM_START 1000
+#define MCCONF_FOC_SL_ERPM_START 2500
 #endif
 
 // Sensorless ERPM
@@ -475,12 +475,12 @@
 
 // Current Sample Mode
 #ifndef MCCONF_FOC_CURRENT_SAMPLE_MODE
-#define MCCONF_FOC_CURRENT_SAMPLE_MODE 1
+#define MCCONF_FOC_CURRENT_SAMPLE_MODE 0
 #endif
 
 // Saturation Compensation Mode
 #ifndef MCCONF_FOC_SAT_COMP_MODE
-#define MCCONF_FOC_SAT_COMP_MODE 2
+#define MCCONF_FOC_SAT_COMP_MODE 0
 #endif
 
 // Saturation Compensation Factor
@@ -495,7 +495,7 @@
 
 // Temp Comp Base Temp
 #ifndef MCCONF_FOC_TEMP_COMP_BASE_TEMP
-#define MCCONF_FOC_TEMP_COMP_BASE_TEMP 25
+#define MCCONF_FOC_TEMP_COMP_BASE_TEMP 30.5
 #endif
 
 // Current Filter Constant
@@ -505,12 +505,12 @@
 
 // Current Controller Decoupling
 #ifndef MCCONF_FOC_CC_DECOUPLING
-#define MCCONF_FOC_CC_DECOUPLING 2
+#define MCCONF_FOC_CC_DECOUPLING 0
 #endif
 
 // Observer Type
 #ifndef MCCONF_FOC_OBSERVER_TYPE
-#define MCCONF_FOC_OBSERVER_TYPE 0
+#define MCCONF_FOC_OBSERVER_TYPE 3
 #endif
 
 // HFI Start Voltage
@@ -525,12 +525,12 @@
 
 // HFI Max Voltage
 #ifndef MCCONF_FOC_HFI_VOLTAGE_MAX
-#define MCCONF_FOC_HFI_VOLTAGE_MAX 5
+#define MCCONF_FOC_HFI_VOLTAGE_MAX 6
 #endif
 
 // HFI Gain
 #ifndef MCCONF_FOC_HFI_GAIN
-#define MCCONF_FOC_HFI_GAIN 0.4
+#define MCCONF_FOC_HFI_GAIN 0.3
 #endif
 
 // HFI Max Error
@@ -540,17 +540,17 @@
 
 // HFI Current Hysteresis
 #ifndef MCCONF_FOC_HFI_HYST
-#define MCCONF_FOC_HFI_HYST 2
+#define MCCONF_FOC_HFI_HYST 0
 #endif
 
 // Sensorless ERPM HFI
 #ifndef MCCONF_FOC_SL_ERPM_HFI
-#define MCCONF_FOC_SL_ERPM_HFI 2000
+#define MCCONF_FOC_SL_ERPM_HFI 3000
 #endif
 
 // HFI Start Samples
 #ifndef MCCONF_FOC_HFI_START_SAMPLES
-#define MCCONF_FOC_HFI_START_SAMPLES 65
+#define MCCONF_FOC_HFI_START_SAMPLES 5
 #endif
 
 // HFI Observer Override Time
@@ -570,47 +570,47 @@
 
 // Current Offset 0
 #ifndef MCCONF_FOC_OFFSETS_CURRENT_0
-#define MCCONF_FOC_OFFSETS_CURRENT_0 2038.77
+#define MCCONF_FOC_OFFSETS_CURRENT_0 2023.82
 #endif
 
 // Current Offset 1
 #ifndef MCCONF_FOC_OFFSETS_CURRENT_1
-#define MCCONF_FOC_OFFSETS_CURRENT_1 2039.28
+#define MCCONF_FOC_OFFSETS_CURRENT_1 2024.87
 #endif
 
 // Current Offset 2
 #ifndef MCCONF_FOC_OFFSETS_CURRENT_2
-#define MCCONF_FOC_OFFSETS_CURRENT_2 2038.6
+#define MCCONF_FOC_OFFSETS_CURRENT_2 2023.58
 #endif
 
 // Voltage Offset 0
 #ifndef MCCONF_FOC_OFFSETS_VOLTAGE_0
-#define MCCONF_FOC_OFFSETS_VOLTAGE_0 0.0008
+#define MCCONF_FOC_OFFSETS_VOLTAGE_0 -0.0074
 #endif
 
 // Voltage Offset 1
 #ifndef MCCONF_FOC_OFFSETS_VOLTAGE_1
-#define MCCONF_FOC_OFFSETS_VOLTAGE_1 -0.0001
+#define MCCONF_FOC_OFFSETS_VOLTAGE_1 0.0048
 #endif
 
 // Voltage Offset 2
 #ifndef MCCONF_FOC_OFFSETS_VOLTAGE_2
-#define MCCONF_FOC_OFFSETS_VOLTAGE_2 -0.0006
+#define MCCONF_FOC_OFFSETS_VOLTAGE_2 0.0025
 #endif
 
 // Voltage Offset Undriven 0
 #ifndef MCCONF_FOC_OFFSETS_VOLTAGE_UNDRIVEN_0
-#define MCCONF_FOC_OFFSETS_VOLTAGE_UNDRIVEN_0 0.0061
+#define MCCONF_FOC_OFFSETS_VOLTAGE_UNDRIVEN_0 0
 #endif
 
 // Voltage Offset Undriven 1
 #ifndef MCCONF_FOC_OFFSETS_VOLTAGE_UNDRIVEN_1
-#define MCCONF_FOC_OFFSETS_VOLTAGE_UNDRIVEN_1 -0.0032
+#define MCCONF_FOC_OFFSETS_VOLTAGE_UNDRIVEN_1 0
 #endif
 
 // Voltage Offset Undriven 2
 #ifndef MCCONF_FOC_OFFSETS_VOLTAGE_UNDRIVEN_2
-#define MCCONF_FOC_OFFSETS_VOLTAGE_UNDRIVEN_2 -0.0027
+#define MCCONF_FOC_OFFSETS_VOLTAGE_UNDRIVEN_2 0
 #endif
 
 // Enable Phase Filters
@@ -625,7 +625,7 @@
 
 // Maximum ERPM for phase filters
 #ifndef MCCONF_FOC_PHASE_FILTER_MAX_ERPM
-#define MCCONF_FOC_PHASE_FILTER_MAX_ERPM 10000
+#define MCCONF_FOC_PHASE_FILTER_MAX_ERPM 4000
 #endif
 
 // MTPA Algorithm Mode
@@ -645,7 +645,7 @@
 
 // Field Weakening Ramp Time
 #ifndef MCCONF_FOC_FW_RAMP_TIME
-#define MCCONF_FOC_FW_RAMP_TIME 0
+#define MCCONF_FOC_FW_RAMP_TIME 0.2
 #endif
 
 // Q Axis Current Factor
@@ -655,7 +655,7 @@
 
 // Speed Tracker Position Source
 #ifndef MCCONF_FOC_SPEED_SOURCE
-#define MCCONF_FOC_SPEED_SOURCE 1
+#define MCCONF_FOC_SPEED_SOURCE 0
 #endif
 
 // Short Low-Side FETs on Zero Duty
@@ -710,7 +710,7 @@
 
 // Position PID Kp
 #ifndef MCCONF_P_PID_KP
-#define MCCONF_P_PID_KP 0.03
+#define MCCONF_P_PID_KP 0.025
 #endif
 
 // Position PID Ki
@@ -720,12 +720,12 @@
 
 // Position PID Kd
 #ifndef MCCONF_P_PID_KD
-#define MCCONF_P_PID_KD 0.0004
+#define MCCONF_P_PID_KD 0
 #endif
 
 // Position PID Kd Process
 #ifndef MCCONF_P_PID_KD_PROC
-#define MCCONF_P_PID_KD_PROC 0.0004
+#define MCCONF_P_PID_KD_PROC 0.00035
 #endif
 
 // Position PID Kd Filter
@@ -770,7 +770,7 @@
 
 // Fault Stop Time
 #ifndef MCCONF_M_FAULT_STOP_TIME
-#define MCCONF_M_FAULT_STOP_TIME 50
+#define MCCONF_M_FAULT_STOP_TIME 500
 #endif
 
 // Duty Ramp Step Max
@@ -855,7 +855,7 @@
 
 // Beta Value for Motor Thermistor
 #ifndef MCCONF_M_NTC_MOTOR_BETA
-#define MCCONF_M_NTC_MOTOR_BETA 3380
+#define MCCONF_M_NTC_MOTOR_BETA 3988
 #endif
 
 // Auxiliary Output Mode
@@ -865,7 +865,7 @@
 
 // Motor Temperature Sensor Type
 #ifndef MCCONF_M_MOTOR_TEMP_SENS_TYPE
-#define MCCONF_M_MOTOR_TEMP_SENS_TYPE 8
+#define MCCONF_M_MOTOR_TEMP_SENS_TYPE 0
 #endif
 
 // Coefficient for PTC Motor Thermistor
@@ -885,12 +885,12 @@
 
 // Hall Sensor Extra Samples
 #ifndef MCCONF_M_HALL_EXTRA_SAMPLES
-#define MCCONF_M_HALL_EXTRA_SAMPLES 1
+#define MCCONF_M_HALL_EXTRA_SAMPLES 3
 #endif
 
 // Battery Filter Constant
 #ifndef MCCONF_M_BATT_FILTER_CONST
-#define MCCONF_M_BATT_FILTER_CONST 1
+#define MCCONF_M_BATT_FILTER_CONST 45
 #endif
 
 // Motor Poles
@@ -900,7 +900,7 @@
 
 // Gear Ratio
 #ifndef MCCONF_SI_GEAR_RATIO
-#define MCCONF_SI_GEAR_RATIO 2.769
+#define MCCONF_SI_GEAR_RATIO 3
 #endif
 
 // Wheel Diameter
@@ -915,7 +915,7 @@
 
 // Battery Cells Series
 #ifndef MCCONF_SI_BATTERY_CELLS
-#define MCCONF_SI_BATTERY_CELLS 6
+#define MCCONF_SI_BATTERY_CELLS 3
 #endif
 
 // Battery Capacity
@@ -983,6 +983,6 @@
 #define MCCONF_BMS_FWD_CAN_MODE 0
 #endif
 
-// MCCONF_ZERNO_DRIVE_H_
+// MCCONF_ZERNO_DRIVE_H
 #endif
 
