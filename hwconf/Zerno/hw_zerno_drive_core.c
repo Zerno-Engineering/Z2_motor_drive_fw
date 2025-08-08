@@ -471,6 +471,7 @@ bool is_sw_position(void) {
 bool is_pfc_ok(void) {
 	return (bool)palReadPad(PFC_STATUS_PORT, PFC_STATUS_PIN);
 }
+
 /* Load the stored values during boot
  *
  */
@@ -510,10 +511,10 @@ bool is_hw_fault(void) {
 bool magnet_error = false;
 bool pfc_error = false;
 
-	if(encoder_magnet_check) {
+/*	if(encoder_magnet_check) { // commented for test purposes
 		mc_interface_set_fault_info("FAULT_ENCODER_NO_MAGNET", 0, 0, 0);
 		magnet_error = true;
-	}
+	}*/
 	if(!is_pfc_ok()) {
 		mc_interface_set_fault_info("FAULT_PFC_ERROR",0,0,0);
 		pfc_error = true;
@@ -572,7 +573,7 @@ static THD_FUNCTION(zerno_thread, arg) {
 	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
 	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
 
-	float encoder_ema_alpha = 0.6; //smoothing factor. This value can be changed between 0.1 to 1.0..(testing)
+	//float encoder_ema_alpha = 0.6; //smoothing factor. This value can be changed between 0.1 to 1.0..(testing)
 
 	for(;;) {
 
@@ -583,8 +584,10 @@ static THD_FUNCTION(zerno_thread, arg) {
 		encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
 		encoder_magnet_check = (encoder_value_low & 0x02);
 
+		(is_pfc_ok())? palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN) : palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN); // added for test purposes.
+
 		// add a parity check here!.
-		if(!encoder_magnet_check && is_sw_position() && is_calibration_done && is_pfc_ok()) {
+		/*if(!encoder_magnet_check && is_sw_position() && is_calibration_done && is_pfc_ok()) {
 			palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 			encoder_rel = encoder_relative_val(encoder_total_value);
 			encoder_rel_ema = encoder_ema_alpha * encoder_rel + (1.0 - encoder_ema_alpha) * encoder_rel_ema; // EMA filter for test purposes.
@@ -593,7 +596,7 @@ static THD_FUNCTION(zerno_thread, arg) {
 			palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 			encoder_rel = 0.0;
 			encoder_rel_ema = 0.0;
-		}
+		}*/
 		chThdSleepMilliseconds(20);
 	}
 }
