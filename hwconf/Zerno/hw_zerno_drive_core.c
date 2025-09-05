@@ -418,7 +418,7 @@ static void terminal_button_test(int argc, const char **argv) {
 
 void spi_delay(void) {
 	// ~167ns long..
-	for (volatile int i = 0; i < 300; i++) { //
+	for (volatile int i = 0; i < 250; i++) { //
 		__NOP();
 	}
 }
@@ -616,9 +616,9 @@ static void terminal_motor_run(int argc , const char **argv) {
 	else
 		commands_printf("Stop...");
 }
+
 /* This thread is used for magnetic encoder and switch input.
  */
-
 static THD_FUNCTION(zerno_thread, arg) {
 	(void)arg;
 
