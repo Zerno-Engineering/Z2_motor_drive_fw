@@ -25,7 +25,9 @@
 #include "terminal.h"
 #include "commands.h"
 #include "spi.h"
+#include "timeout.h"
 
+#include <string.h>
 #include <math.h>
 
 #define	EEPROM_ADDR_ENCODER_VALUE	2
@@ -33,29 +35,38 @@
 
 static THD_FUNCTION(zerno_thread, arg);
 static THD_WORKING_AREA(zerno_thread_wa, 1024);
-static bool zerno_thread_running = false;
 
-uint16_t encoder_max_value = 16384; // 14 bit max value
-uint16_t encoder_min_value = 0; //not sure if will be 0, but need to be tested in hardware.
-uint16_t encoder_value_high;
-uint16_t encoder_value_low;
-uint16_t encoder_total_value;
-uint16_t encoder_magnet_check;
-float_t encoder_rel = 0.0;
-float encoder_rel_ema;
+static THD_FUNCTION(speed_thread, arg);
+static THD_WORKING_AREA(speed_thread_wa, 1024);
+
+
+static bool zerno_thread_running = false;
+static bool speed_thread_running = false;
+
+volatile uint16_t encoder_max_value = 16384; // 14 bit max value
+volatile uint16_t encoder_min_value = 0; //not sure if will be 0, but need to be tested in hardware.
+volatile uint16_t encoder_value_high;
+volatile uint16_t encoder_value_low;
+volatile uint16_t encoder_total_value;
+volatile uint16_t encoder_magnet_check;
+volatile float_t encoder_rel = 0.0;
+volatile float speed_setpoint = 0.0;
+volatile float encoder_rel_ema;
 
 // variable for test purposes
 int is_calibration_done = 0 ;
 
-uint16_t mt6816_spi_transfer(uint16_t out);
-uint16_t mt6816_read_register(uint8_t reg_addr);
+static uint16_t mt6816_spi_transfer(uint16_t out);
+static uint16_t mt6816_read_register(uint8_t reg_addr);
 float_t encoder_relative_val(uint16_t data_encoder);
 
 void spi_delay(void);
 void define_default_values(void);
 void encoder_calibrate_offset(void);
+void pid_speed(float set_rpm);
 
 bool is_pfc_ok(void);
+bool motor_start = false;
 float get_pfc_temp(void);
 
 // Variables
@@ -75,6 +86,7 @@ static const I2CConfig i2cfg = {
 static void terminal_shutdown_now(int argc, const char **argv);
 static void terminal_button_test(int argc, const char **argv);
 static void terminal_print_info(int argc, const char **argv);
+static void terminal_motor_run(int argc , const char **argv);
 
 void hw_init_gpio(void) {
 	chMtxObjectInit(&shutdown_mutex);
@@ -205,6 +217,11 @@ void hw_init_gpio(void) {
 			zerno_thread_running = true;
 		}
 
+	if (!speed_thread_running) {
+				chThdCreateStatic(speed_thread_wa, sizeof(speed_thread_wa), NORMALPRIO, speed_thread, NULL);
+				speed_thread_running = true;
+			}
+
 	terminal_register_command_callback(
 			"shutdown",
 			"Shutdown VESC now.",
@@ -222,6 +239,12 @@ void hw_init_gpio(void) {
 			"Value",
 			0,
 			terminal_print_info);
+
+	terminal_register_command_callback(
+				"motor_state",
+				"on/off",
+				0,
+				terminal_motor_run);
 
 }
 
@@ -395,7 +418,7 @@ static void terminal_button_test(int argc, const char **argv) {
 
 void spi_delay(void) {
 	// ~167ns long..
-	for (volatile int i = 0; i < 500; i++) {
+	for (volatile int i = 0; i < 300; i++) { //
 		__NOP();
 	}
 }
@@ -432,7 +455,7 @@ uint16_t mt6816_read_register(uint8_t reg_addr) {
 	uint16_t reg_val;
 
 	MT6816_CS_LOW();
-	//chThdSleepMicroseconds(1);
+	chThdSleepMicroseconds(1); // originally it was commented
 	reg_val = mt6816_spi_transfer(cmd);
 	MT6816_CS_HIGH();
 	chThdSleepMicroseconds(1);
@@ -455,7 +478,7 @@ float_t encoder_relative_val(uint16_t data_encoder) {
 		calibrated_val += encoder_max_value;
 	}
 
-	relative = calibrated_val/encoder_max_value;
+	relative = calibrated_val/encoder_max_value; // comment this to send just the raw calibrated value from the encoder.
 
 	return relative;
 }
@@ -495,7 +518,7 @@ void encoder_calibrate_offset(void) {
 	encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
 	encoder_magnet_check = (encoder_value_low & 0x02);
 
-	if(is_momentary_position()) { //&& !encoder_magnet_check) { // perform a calibration during boot. Just check momentary positions. Check the initial value
+	if(!is_momentary_position()) { //&& !encoder_magnet_check) { // perform a calibration during boot. Just check momentary positions. Check the initial value
 		encoder_min_value = encoder_total_value;
 		offset_value.as_i32 = encoder_min_value;
 		conf_general_store_eeprom_var_hw(&offset_value, EEPROM_ADDR_ENCODER_VALUE);
@@ -520,7 +543,7 @@ bool pfc_error = false;
 		pfc_error = true;
 	}
 
-	return (magnet_error | pfc_error);
+	return (pfc_error);
 }
 
 float get_pfc_temp(void) {
@@ -531,6 +554,11 @@ float get_pfc_temp(void) {
 	return temp_pfc_filtered;
 }
 
+void pid_speed(float set_rpm) {
+	timeout_reset();
+    mc_interface_set_pid_speed(set_rpm); //
+}
+
 static void terminal_print_info(int argc, const char **argv) {
 	(void)argc;
 	(void)argv;
@@ -538,31 +566,59 @@ static void terminal_print_info(int argc, const char **argv) {
 	eeprom_var data_stored, check_cal;
 
 	conf_general_read_eeprom_var_hw(&data_stored, EEPROM_ADDR_ENCODER_VALUE);
-	commands_printf("Encoder stored value: %d", data_stored.as_i32);
+	//commands_printf("Encoder stored value: %d", data_stored.as_i32);
 	conf_general_read_eeprom_var_hw(&check_cal, EEPROM_ADDR_CALIBRATION_CHECK);
-	commands_printf("Calibration status: %d", check_cal.as_i32);
+	//commands_printf("Calibration status: %d", check_cal.as_i32);
 
-	if(is_pfc_ok()) // test purposes
-		commands_printf("PFC status: OK");
+	if(is_momentary_position())
+		commands_printf("Momentary_pos:OFF");
 	else
-		commands_printf("PFC status: ERROR");
+		commands_printf("Momentary_pos:ON");
+
+	if(is_sw_position())
+			commands_printf("sw_pos:OFF");
+		else
+			commands_printf("sw_pos:ON");
+
 
 	if(encoder_magnet_check) {
 		commands_printf("Magnet status: MAGNET ERROR"); // This can be added as a custom error
 		commands_printf("Encoder value: %d", encoder_total_value);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
 		commands_printf("EMA filter: %f", (double)encoder_rel_ema);
+		commands_printf("speed: %f", (double)speed_setpoint);
 	}
 		else {
 	    commands_printf("Magnet status: MAGNET OK");
 		commands_printf("Encoder value: %d", encoder_total_value);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
 		commands_printf("EMA filter: %f", (double)encoder_rel_ema);
+		commands_printf("speed: %f", (double)speed_setpoint);
 	}
 }
 
+static void terminal_motor_run(int argc , const char **argv) {
+	(void)argc;
+	(void)argv;
+
+	if(strcmp(argv[1], "ON") == 0) {
+		commands_printf("Motor ON");
+		motor_start = true;
+	}
+	if(strcmp(argv[1], "OFF") == 0) {
+		commands_printf("Motor OFF");
+		motor_start = false;
+	}
+
+	if(motor_start)
+		commands_printf("Running...");
+
+	else
+		commands_printf("Stop...");
+}
 /* This thread is used for magnetic encoder and switch input.
  */
+
 static THD_FUNCTION(zerno_thread, arg) {
 	(void)arg;
 
@@ -573,10 +629,9 @@ static THD_FUNCTION(zerno_thread, arg) {
 	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
 	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
 
-	float encoder_ema_alpha = 0.6; //smoothing factor. This value can be changed between 0.1 to 1.0..(testing)
+	//float encoder_ema_alpha = 0.6; //smoothing factor. This value can be changed between 0.1 to 1.0..(testing)
 
 	for(;;) {
-
 		encoder_value_high = mt6816_read_register(reg_addr_1);
 		encoder_value_low = mt6816_read_register(reg_addr_2);
 
@@ -584,19 +639,40 @@ static THD_FUNCTION(zerno_thread, arg) {
 		encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
 		encoder_magnet_check = (encoder_value_low & 0x02);
 
-		(is_pfc_ok())? palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN) : palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN); // added for test purposes.
-
 		// add a parity check here!.
-		if(!encoder_magnet_check && is_sw_position() && is_calibration_done && is_pfc_ok()) {
-			palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
-			encoder_rel = encoder_relative_val(encoder_total_value);
-			encoder_rel_ema = encoder_ema_alpha * encoder_rel + (1.0 - encoder_ema_alpha) * encoder_rel_ema; // EMA filter for test purposes.
-		}
-		else {
-			palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
-			encoder_rel = 0.0;
-			encoder_rel_ema = 0.0;
-		}
-		chThdSleepMilliseconds(20);
+
+		chThdSleepMilliseconds(10); // 1000 works well
+	}
+}
+
+static THD_FUNCTION(speed_thread, arg) {
+	(void)arg;
+
+	chRegSetThreadName("speed_pid");
+	//chThdSleepMilliseconds(3000);
+
+	for(;;) {
+
+		if(is_pfc_ok()) {
+						palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
+
+						if(!is_sw_position() && is_calibration_done) { // if(!encoder_magnet_check && !is_sw_position() && is_calibration_done)
+							encoder_rel = encoder_relative_val(encoder_total_value);
+							speed_setpoint = utils_map(encoder_relative_val(encoder_total_value), 0.0 , 0.99, 0.0, 3200); // keep in mind the pairs pole
+							}
+						else {
+							encoder_rel = 0.0;
+							encoder_rel_ema = 0.0;
+							speed_setpoint = 0.0;
+							}
+
+						if(!is_momentary_position() && is_calibration_done) {
+							speed_setpoint = 3200;
+							}
+				}
+				else {
+					palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
+				}
+		chThdSleepMilliseconds(50);
 	}
 }
