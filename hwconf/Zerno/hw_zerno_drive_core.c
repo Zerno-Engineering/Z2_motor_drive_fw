@@ -33,14 +33,11 @@
 #define	EEPROM_ADDR_ENCODER_VALUE	2
 #define EEPROM_ADDR_CALIBRATION_CHECK	6
 
-static THD_FUNCTION(zerno_thread, arg);
-static THD_WORKING_AREA(zerno_thread_wa, 1024);
-
 static THD_FUNCTION(speed_thread, arg);
 static THD_WORKING_AREA(speed_thread_wa, 1024);
 
+static void zerno_pwm_callback(void);
 
-static bool zerno_thread_running = false;
 static bool speed_thread_running = false;
 
 volatile uint16_t encoder_max_value = 16384; // 14 bit max value
@@ -62,6 +59,7 @@ int is_calibration_done = 0 ;
 float_t encoder_relative_val(uint16_t data_encoder);
 
 void spi_delay(void);
+void cs_delay(void);
 void define_default_values(void);
 void encoder_calibrate_offset(void);
 void pid_speed(float set_rpm);
@@ -73,6 +71,7 @@ float get_pfc_temp(void);
 // Variables
 static volatile bool i2c_running = false;
 static mutex_t shutdown_mutex;
+static mutex_t spi_state;
 static bool shutdown_pressed = false;
 static int shutdown_pressed_time = 0;
 
@@ -208,15 +207,12 @@ void hw_init_gpio(void) {
 
 //	encoder_calibrate_offset();
 
+	mc_interface_set_pwm_callback(zerno_pwm_callback);
+
 	if(is_pfc_ok())
 		palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 	else
 		palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
-
-	if (!zerno_thread_running) {
-			chThdCreateStatic(zerno_thread_wa, sizeof(zerno_thread_wa), NORMALPRIO, zerno_thread, NULL);
-			zerno_thread_running = true;
-		}
 
 	if (!speed_thread_running) {
 				chThdCreateStatic(speed_thread_wa, sizeof(speed_thread_wa), NORMALPRIO, speed_thread, NULL);
@@ -424,6 +420,13 @@ void spi_delay(void) {
 	}
 }
 
+void cs_delay(void) {
+
+	for (volatile int i = 0; i < 1; i++) { // 250 for 27Khz
+			__NOP();
+	}
+}
+
 uint16_t mt6816_spi_transfer(uint16_t out) {
 	uint16_t in = 0;
 	for (int i = 15; i >= 0; i--) {
@@ -456,15 +459,10 @@ uint16_t mt6816_read_register(uint8_t reg_addr) {
 	uint16_t reg_val;
 
 	MT6816_CS_LOW();
-	chThdSleepMicroseconds(1); // originally it was commented
+	cs_delay();//__NOP;//chThdSleepMicroseconds(1); // originally it was commented
 	reg_val = mt6816_spi_transfer(cmd);
 	MT6816_CS_HIGH();
-	chThdSleepMicroseconds(1);
-
-	//MT6816_CS_LOW();
-	//spi_delay();//chThdSleepMicroseconds(1);
-	//reg_val = mt6816_spi_transfer(0x0000); // Read response
-	//MT6816_CS_HIGH();
+	cs_delay(); //__NOP;//chThdSleepMicroseconds(1);
 
 	return reg_val;
 }
@@ -620,18 +618,16 @@ static void terminal_motor_run(int argc , const char **argv) {
 		commands_printf("Stop...");
 }
 
-/* This thread is used for magnetic encoder and switch input.
- */
-static THD_FUNCTION(zerno_thread, arg) {
-	(void)arg;
+static void zerno_pwm_callback(void) {
+	// Called for every control iteration in interrupt context.
 
-	chRegSetThreadName("zerno_drive");
-	chThdSleepMilliseconds(3000);
+	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
+	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
 
-	// encoder address
-	//uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
-	//uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
+	encoder_value_high = mt6816_read_register(reg_addr_1);
+	encoder_value_low = mt6816_read_register(reg_addr_2);
 
+<<<<<<< HEAD
 	//float encoder_ema_alpha = 0.6; //smoothing factor. This value can be changed between 0.1 to 1.0..(testing)
 
 	for(;;) {
@@ -648,8 +644,14 @@ static THD_FUNCTION(zerno_thread, arg) {
 
 		chThdSleepMilliseconds(10); // 1000 works well
 	}
+=======
+	encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
+	encoder_magnet_check = (encoder_value_low & 0x02);
+>>>>>>> 0af8503b (Define callback function - Read encoder after pwm event)
 }
 
+/* This thread is used for magnetic encoder and switch input.
+ */
 static THD_FUNCTION(speed_thread, arg) {
 	(void)arg;
 

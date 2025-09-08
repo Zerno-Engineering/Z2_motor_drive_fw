@@ -20,7 +20,7 @@
 #include "conf_general.h"
 
 #ifdef APP_CUSTOM_TO_USE
-#include APP_CUSTOM_TO_USE	"/Zerno_drive/hwconf/Zerno/hw_zerno_drive_core.c"
+#include APP_CUSTOM_TO_USE
 #endif
 
 #ifdef APP_CUSTOM_TO_USE_FILE_2

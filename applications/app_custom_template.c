@@ -51,7 +51,7 @@ static volatile bool is_running = false;
 // Called when the custom application is started. Start our
 // threads here and set up callbacks.
 void app_custom_start(void) {
-	mc_interface_set_pwm_callback(pwm_callback);
+	mc_interface_set_pwm_callback (pwm_callback);
 
 	stop_now = false;
 	chThdCreateStatic(my_thread_wa, sizeof(my_thread_wa),
@@ -121,13 +121,6 @@ static THD_FUNCTION(my_thread, arg) {
 
 static void pwm_callback(void) {
 	// Called for every control iteration in interrupt context.
-
-	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
-	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
-
-	encoder_value_high = mt6816_read_register(reg_addr_1);
-	encoder_value_low = mt6816_read_register(reg_addr_2);
-
 }
 
 // Callback function for the terminal command with arguments.
