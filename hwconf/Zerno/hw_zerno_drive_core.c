@@ -48,6 +48,7 @@ volatile uint16_t encoder_min_value = 0; //not sure if will be 0, but need to be
 volatile uint16_t encoder_value_high;
 volatile uint16_t encoder_value_low;
 volatile uint16_t encoder_total_value;
+volatile uint16_t encoder_value_filtered;
 volatile uint16_t encoder_magnet_check;
 volatile float_t encoder_rel = 0.0;
 volatile float speed_setpoint = 0.0;
@@ -418,7 +419,7 @@ static void terminal_button_test(int argc, const char **argv) {
 
 void spi_delay(void) {
 	// ~167ns long..
-	for (volatile int i = 0; i < 1; i++) { //
+	for (volatile int i = 0; i < 1; i++) { // for 1 : 3.5MHZ spi clock
 		__NOP();
 	}
 }
@@ -584,6 +585,7 @@ static void terminal_print_info(int argc, const char **argv) {
 	if(encoder_magnet_check) {
 		commands_printf("Magnet status: MAGNET ERROR"); // This can be added as a custom error
 		commands_printf("Encoder value: %d", encoder_total_value);
+		commands_printf("Encoder value filtered; %d" , encoder_value_filtered);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
 		commands_printf("EMA filter: %f", (double)encoder_rel_ema);
 		commands_printf("speed: %f", (double)speed_setpoint);
@@ -591,6 +593,7 @@ static void terminal_print_info(int argc, const char **argv) {
 		else {
 	    commands_printf("Magnet status: MAGNET OK");
 		commands_printf("Encoder value: %d", encoder_total_value);
+		commands_printf("Encoder value filtered; %d" , encoder_value_filtered);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
 		commands_printf("EMA filter: %f", (double)encoder_rel_ema);
 		commands_printf("speed: %f", (double)speed_setpoint);
@@ -639,6 +642,7 @@ static THD_FUNCTION(zerno_thread, arg) {
 		encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
 		encoder_magnet_check = (encoder_value_low & 0x02);
 
+		//UTILS_LP_FAST(encoder_value_filtered, encoder_total_value, 0.1);
 		// add a parity check here!.
 
 		chThdSleepMilliseconds(10); // 1000 works well
