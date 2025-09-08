@@ -418,7 +418,7 @@ static void terminal_button_test(int argc, const char **argv) {
 
 void spi_delay(void) {
 	// ~167ns long..
-	for (volatile int i = 0; i < 250; i++) { //
+	for (volatile int i = 0; i < 1; i++) { //
 		__NOP();
 	}
 }
