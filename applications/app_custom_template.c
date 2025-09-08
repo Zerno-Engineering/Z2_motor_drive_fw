@@ -35,6 +35,7 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "hw_zerno_drive_core.h"
 // Threads
 static THD_FUNCTION(my_thread, arg);
 static THD_WORKING_AREA(my_thread_wa, 1024);
@@ -120,6 +121,13 @@ static THD_FUNCTION(my_thread, arg) {
 
 static void pwm_callback(void) {
 	// Called for every control iteration in interrupt context.
+
+	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
+	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
+
+	encoder_value_high = mt6816_read_register(reg_addr_1);
+	encoder_value_low = mt6816_read_register(reg_addr_2);
+
 }
 
 // Callback function for the terminal command with arguments.

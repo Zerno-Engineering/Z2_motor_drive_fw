@@ -31,6 +31,7 @@
 #include "comm_can.h"
 #include "hw.h"
 #include <math.h>
+#include <utils_math.h>
 
 // Settings
 #define MAX_CAN_AGE						0.1

@@ -57,8 +57,8 @@ volatile float encoder_rel_ema;
 // variable for test purposes
 int is_calibration_done = 0 ;
 
-static uint16_t mt6816_spi_transfer(uint16_t out);
-static uint16_t mt6816_read_register(uint8_t reg_addr);
+//static uint16_t mt6816_spi_transfer(uint16_t out);
+//static uint16_t mt6816_read_register(uint8_t reg_addr);
 float_t encoder_relative_val(uint16_t data_encoder);
 
 void spi_delay(void);
@@ -206,7 +206,7 @@ void hw_init_gpio(void) {
 	//DAC->DHR12R1 = 2047;
 	define_default_values();
 
-	encoder_calibrate_offset();
+//	encoder_calibrate_offset();
 
 	if(is_pfc_ok())
 		palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
@@ -508,7 +508,7 @@ void define_default_values(void) {
 	conf_general_read_eeprom_var_hw(&default_calibration, EEPROM_ADDR_CALIBRATION_CHECK);
 	is_calibration_done = default_calibration.as_i32;
 }
-
+/*  // disable calibration for a whie for test purposes
 void encoder_calibrate_offset(void) {
 
 	eeprom_var offset_value, calibration_check;
@@ -529,7 +529,7 @@ void encoder_calibrate_offset(void) {
 		conf_general_store_eeprom_var_hw(&calibration_check, EEPROM_ADDR_CALIBRATION_CHECK);
 	}
 }
-
+*/
 bool is_hw_fault(void) {
 
 bool magnet_error = false;
@@ -629,21 +629,22 @@ static THD_FUNCTION(zerno_thread, arg) {
 	chThdSleepMilliseconds(3000);
 
 	// encoder address
-	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
-	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
+	//uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
+	//uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
 
 	//float encoder_ema_alpha = 0.6; //smoothing factor. This value can be changed between 0.1 to 1.0..(testing)
 
 	for(;;) {
-		encoder_value_high = mt6816_read_register(reg_addr_1);
-		encoder_value_low = mt6816_read_register(reg_addr_2);
-
+		//encoder_value_high = mt6816_read_register(reg_addr_1);
+		//encoder_value_low = mt6816_read_register(reg_addr_2);
+        encoder_total_value = encoder_value_high;
 		// The data is concatenated, since part of the angle information comes in registers 0x03 [13:6] and 0x04 [5:0] to form the 14 bits
-		encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
-		encoder_magnet_check = (encoder_value_low & 0x02);
+		//encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
+		//encoder_magnet_check = (encoder_value_low & 0x02);
 
 		//UTILS_LP_FAST(encoder_value_filtered, encoder_total_value, 0.1);
 		// add a parity check here!.
+
 
 		chThdSleepMilliseconds(10); // 1000 works well
 	}
