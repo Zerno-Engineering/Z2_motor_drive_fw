@@ -33,11 +33,10 @@
 
 #define	EEPROM_ADDR_ENCODER_VALUE	2
 #define EEPROM_ADDR_CALIBRATION_CHECK	6
+#define MAGNET_TIMEOUT_MS 1000
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_WORKING_AREA(speed_thread_wa, 1024);
-
-static void zerno_pwm_callback(void);
 
 static bool speed_thread_running = false;
 
@@ -206,8 +205,6 @@ void hw_init_gpio(void) {
 	//DAC->CR |= DAC_CR_EN1;
 	//DAC->DHR12R1 = 2047;
 	define_default_values();
-
-	mc_interface_set_pwm_callback(zerno_pwm_callback);
 
 	encoder_calibrate_offset();
 
@@ -620,20 +617,6 @@ static void terminal_motor_run(int argc , const char **argv) {
 		commands_printf("Stop...");
 }
 
-static void zerno_pwm_callback(void) {
-	// Called for every control iteration in interrupt context.
-
-	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
-	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
-
-	encoder_value_high = mt6816_read_register(reg_addr_1);
-	encoder_value_low = mt6816_read_register(reg_addr_2);
-
-	encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
-	encoder_magnet_check = (encoder_value_low & 0x02);
-
-}
-
 /* This thread is used for magnetic encoder and switch input.
  */
 static THD_FUNCTION(speed_thread, arg) {
@@ -641,26 +624,47 @@ static THD_FUNCTION(speed_thread, arg) {
 
 	chRegSetThreadName("speed_pid");
 
+	static systime_t last_magnet_ok_time = 0;
+
+	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
+	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
+
 	for(;;) {
+
+		encoder_value_high = mt6816_read_register(reg_addr_1);
+		encoder_value_low = mt6816_read_register(reg_addr_2);
 
 		encoder_total_value = (encoder_value_high << 8) | encoder_value_low;
 
 		if(spi_bb_check_parity(encoder_total_value)) {
 			if((encoder_total_value & 0x02)) {
-				encoder_magnet_check = 1;
+				//encoder_magnet_check = 1;
+				// change the logic here!!
+				// error magnet here!
 			}
 			else {
 				encoder_magnet_check = 0;
 				encoder_setpoint = encoder_total_value >> 2;
+				UTILS_LP_MOVING_AVG_APPROX(encoder_setpoint_filtered, encoder_setpoint, 5);
+				last_magnet_ok_time = chVTGetSystemTimeX();
+				}
 			}
+
+		else {
+			UTILS_LP_MOVING_AVG_APPROX(encoder_setpoint_filtered, encoder_setpoint, 5); // not sure about this.
 		}
+
+       // No magnet timeout
+		if ((encoder_total_value & 0x02) && (chVTTimeElapsedSinceX(last_magnet_ok_time) > MS2ST(MAGNET_TIMEOUT_MS))) {
+		            encoder_magnet_check = 1;
+		        }
 
 		if(is_pfc_ok()) {
 			palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
 			if(!is_sw_position() && !encoder_magnet_check) {//(!is_sw_position() && is_calibration_done) { // if(!encoder_magnet_check && !is_sw_position() && is_calibration_done)
-				encoder_rel = encoder_relative_val(encoder_setpoint);
-				speed_setpoint = utils_map(encoder_relative_val(encoder_setpoint), 0.0 , 0.99, 0.0, 6400); // keep in mind the pairs pole
+				encoder_rel = encoder_relative_val(encoder_setpoint_filtered);
+				speed_setpoint = utils_map(encoder_relative_val(encoder_setpoint_filtered), 0.0 , 0.99, 0.0, 6400); // keep in mind the pairs pole
 				timeout_reset();
 				mc_interface_set_pid_speed(speed_setpoint);
 			}
@@ -677,6 +681,6 @@ static THD_FUNCTION(speed_thread, arg) {
 		else {
 					palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 				}
-		chThdSleepMilliseconds(50);
+		chThdSleepMilliseconds(50); // 50
 	}
 }

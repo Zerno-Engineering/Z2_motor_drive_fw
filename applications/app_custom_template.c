@@ -35,7 +35,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "hw_zerno_drive_core.h"
 // Threads
 static THD_FUNCTION(my_thread, arg);
 static THD_WORKING_AREA(my_thread_wa, 1024);
