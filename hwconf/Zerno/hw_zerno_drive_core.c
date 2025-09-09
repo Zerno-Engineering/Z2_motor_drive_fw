@@ -660,7 +660,7 @@ static THD_FUNCTION(speed_thread, arg) {
 
 			if(!is_sw_position() && !encoder_magnet_check) {//(!is_sw_position() && is_calibration_done) { // if(!encoder_magnet_check && !is_sw_position() && is_calibration_done)
 				encoder_rel = encoder_relative_val(encoder_setpoint);
-				speed_setpoint = utils_map(encoder_relative_val(encoder_setpoint), 0.0 , 0.99, 0.0, 3200); // keep in mind the pairs pole
+				speed_setpoint = utils_map(encoder_relative_val(encoder_setpoint), 0.0 , 0.99, 0.0, 6400); // keep in mind the pairs pole
 				timeout_reset();
 				mc_interface_set_pid_speed(speed_setpoint);
 			}
