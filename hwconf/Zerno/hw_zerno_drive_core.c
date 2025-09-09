@@ -25,6 +25,7 @@
 #include "terminal.h"
 #include "commands.h"
 #include "spi.h"
+#include "spi_bb.h"
 #include "timeout.h"
 
 #include <string.h>
@@ -46,6 +47,7 @@ volatile uint16_t encoder_value_high;
 volatile uint16_t encoder_value_low;
 volatile uint16_t encoder_total_value;
 volatile uint16_t encoder_value_filtered;
+volatile uint16_t encoder_setpoint;
 volatile uint16_t encoder_magnet_check;
 volatile float_t encoder_rel = 0.0;
 volatile float speed_setpoint = 0.0;
@@ -71,7 +73,7 @@ float get_pfc_temp(void);
 // Variables
 static volatile bool i2c_running = false;
 static mutex_t shutdown_mutex;
-static mutex_t spi_state;
+
 static bool shutdown_pressed = false;
 static int shutdown_pressed_time = 0;
 
@@ -205,9 +207,9 @@ void hw_init_gpio(void) {
 	//DAC->DHR12R1 = 2047;
 	define_default_values();
 
-//	encoder_calibrate_offset();
-
 	mc_interface_set_pwm_callback(zerno_pwm_callback);
+
+	encoder_calibrate_offset();
 
 	if(is_pfc_ok())
 		palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
@@ -422,7 +424,7 @@ void spi_delay(void) {
 
 void cs_delay(void) {
 
-	for (volatile int i = 0; i < 1; i++) { // 250 for 27Khz
+	for (volatile int i = 0; i < 1; i++) {
 			__NOP();
 	}
 }
@@ -506,7 +508,7 @@ void define_default_values(void) {
 	conf_general_read_eeprom_var_hw(&default_calibration, EEPROM_ADDR_CALIBRATION_CHECK);
 	is_calibration_done = default_calibration.as_i32;
 }
-/*  // disable calibration for a whie for test purposes
+
 void encoder_calibrate_offset(void) {
 
 	eeprom_var offset_value, calibration_check;
@@ -527,7 +529,7 @@ void encoder_calibrate_offset(void) {
 		conf_general_store_eeprom_var_hw(&calibration_check, EEPROM_ADDR_CALIBRATION_CHECK);
 	}
 }
-*/
+
 bool is_hw_fault(void) {
 
 bool magnet_error = false;
@@ -627,27 +629,9 @@ static void zerno_pwm_callback(void) {
 	encoder_value_high = mt6816_read_register(reg_addr_1);
 	encoder_value_low = mt6816_read_register(reg_addr_2);
 
-<<<<<<< HEAD
-	//float encoder_ema_alpha = 0.6; //smoothing factor. This value can be changed between 0.1 to 1.0..(testing)
-
-	for(;;) {
-		//encoder_value_high = mt6816_read_register(reg_addr_1);
-		//encoder_value_low = mt6816_read_register(reg_addr_2);
-        encoder_total_value = encoder_value_high;
-		// The data is concatenated, since part of the angle information comes in registers 0x03 [13:6] and 0x04 [5:0] to form the 14 bits
-		//encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
-		//encoder_magnet_check = (encoder_value_low & 0x02);
-
-		//UTILS_LP_FAST(encoder_value_filtered, encoder_total_value, 0.1);
-		// add a parity check here!.
-
-
-		chThdSleepMilliseconds(10); // 1000 works well
-	}
-=======
 	encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
 	encoder_magnet_check = (encoder_value_low & 0x02);
->>>>>>> 0af8503b (Define callback function - Read encoder after pwm event)
+
 }
 
 /* This thread is used for magnetic encoder and switch input.
@@ -656,28 +640,41 @@ static THD_FUNCTION(speed_thread, arg) {
 	(void)arg;
 
 	chRegSetThreadName("speed_pid");
-	//chThdSleepMilliseconds(3000);
 
 	for(;;) {
 
+		encoder_total_value = (encoder_value_high << 8) | encoder_value_low;
+
+		if(spi_bb_check_parity(encoder_total_value)) {
+			if((encoder_total_value & 0x02)) {
+				encoder_magnet_check = 1;
+			}
+			else {
+				encoder_magnet_check = 0;
+				encoder_setpoint = encoder_total_value >> 2;
+			}
+		}
+
 		if(is_pfc_ok()) {
-						palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
+			palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
-						if(!is_sw_position() && is_calibration_done) { // if(!encoder_magnet_check && !is_sw_position() && is_calibration_done)
-							encoder_rel = encoder_relative_val(encoder_total_value);
-							speed_setpoint = utils_map(encoder_relative_val(encoder_total_value), 0.0 , 0.99, 0.0, 3200); // keep in mind the pairs pole
-							}
-						else {
-							encoder_rel = 0.0;
-							encoder_rel_ema = 0.0;
-							speed_setpoint = 0.0;
-							}
+			if(!is_sw_position() && !encoder_magnet_check) {//(!is_sw_position() && is_calibration_done) { // if(!encoder_magnet_check && !is_sw_position() && is_calibration_done)
+				encoder_rel = encoder_relative_val(encoder_setpoint);
+				speed_setpoint = utils_map(encoder_relative_val(encoder_setpoint), 0.0 , 0.99, 0.0, 3200); // keep in mind the pairs pole
+				timeout_reset();
+				mc_interface_set_pid_speed(speed_setpoint);
+			}
+			else {
+				encoder_rel = 0.0;
+				encoder_rel_ema = 0.0;
+				speed_setpoint = 0.0;
+			}
 
-						if(!is_momentary_position() && is_calibration_done) {
-							speed_setpoint = 3200;
-							}
-				}
-				else {
+		if(!is_momentary_position() && is_calibration_done) {
+			speed_setpoint = 3200;
+			}
+		}
+		else {
 					palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 				}
 		chThdSleepMilliseconds(50);

@@ -378,10 +378,4 @@ bool is_sw_position(void);
 bool is_hw_fault(void);
 float get_pfc_temp(void);
 
-uint16_t mt6816_spi_transfer(uint16_t out);
-uint16_t mt6816_read_register(uint8_t reg_addr);
-
-//uint16_t encoder_value_high;
-//uint16_t encoder_value_low;
-
 #endif/* HW_ZERNO_DRIVE_CORE_H_ */
