@@ -51,6 +51,7 @@ volatile uint16_t encoder_magnet_check;
 volatile float_t encoder_rel = 0.0;
 volatile float speed_setpoint = 0.0;
 volatile float encoder_rel_ema;
+volatile float encoder_setpoint_ema = 0.0; // Add this line at the top with other globals
 
 // variable for test purposes
 int is_calibration_done = 0 ;
@@ -67,6 +68,7 @@ void pid_speed(float set_rpm);
 
 bool is_pfc_ok(void);
 bool motor_start = false;
+bool parity_check = false;
 float get_pfc_temp(void);
 
 // Variables
@@ -629,6 +631,8 @@ static THD_FUNCTION(speed_thread, arg) {
 	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
 	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
 
+	float ema_coef = 0.2; // smoothing factor
+
 	for(;;) {
 
 		encoder_value_high = mt6816_read_register(reg_addr_1);
@@ -638,22 +642,21 @@ static THD_FUNCTION(speed_thread, arg) {
 
 		if(spi_bb_check_parity(encoder_total_value)) {
 			if((encoder_total_value & 0x02)) {
-				//encoder_magnet_check = 1;
-				// change the logic here!!
 				// error magnet here!
 			}
 			else {
 				encoder_magnet_check = 0;
+				parity_check = true;
 				encoder_setpoint = encoder_total_value >> 2;
-				UTILS_LP_MOVING_AVG_APPROX(encoder_setpoint_filtered, encoder_setpoint, 5);
+				UTILS_LP_MOVING_AVG_APPROX(encoder_setpoint_filtered, encoder_setpoint, 10);
+				encoder_setpoint_ema = (ema_coef * encoder_setpoint_filtered) + ((1.0 - ema_coef) * encoder_setpoint_ema); // for 0.05 is too slow
 				last_magnet_ok_time = chVTGetSystemTimeX();
 				}
-			}
-
-		else {
-			UTILS_LP_MOVING_AVG_APPROX(encoder_setpoint_filtered, encoder_setpoint, 5); // not sure about this.
 		}
 
+		else {
+			parity_check = false;
+		}
        // No magnet timeout
 		if ((encoder_total_value & 0x02) && (chVTTimeElapsedSinceX(last_magnet_ok_time) > MS2ST(MAGNET_TIMEOUT_MS))) {
 		            encoder_magnet_check = 1;
@@ -662,9 +665,9 @@ static THD_FUNCTION(speed_thread, arg) {
 		if(is_pfc_ok()) {
 			palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
-			if(!is_sw_position() && !encoder_magnet_check) {//(!is_sw_position() && is_calibration_done) { // if(!encoder_magnet_check && !is_sw_position() && is_calibration_done)
-				encoder_rel = encoder_relative_val(encoder_setpoint_filtered);
-				speed_setpoint = utils_map(encoder_relative_val(encoder_setpoint_filtered), 0.0 , 0.99, 0.0, 6400); // keep in mind the pairs pole
+			if(!is_sw_position() && !encoder_magnet_check && parity_check) {//(!is_sw_position() && is_calibration_done) { // if(!encoder_magnet_check && !is_sw_position() && is_calibration_done)
+				encoder_rel = encoder_relative_val(encoder_setpoint_ema);
+				speed_setpoint = utils_map(encoder_relative_val(encoder_setpoint_ema), 0.0 , 0.99, 0.0, 6400); // keep in mind the pairs pole
 				timeout_reset();
 				mc_interface_set_pid_speed(speed_setpoint);
 			}
@@ -679,8 +682,8 @@ static THD_FUNCTION(speed_thread, arg) {
 			}
 		}
 		else {
-					palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
-				}
-		chThdSleepMilliseconds(50); // 50
+			palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
+		}
+		chThdSleepMilliseconds(100); // 50
 	}
 }
