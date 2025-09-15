@@ -30,6 +30,7 @@
 
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
 
 #define	EEPROM_ADDR_ENCODER_VALUE	2
 #define EEPROM_ADDR_CALIBRATION_CHECK	6
@@ -551,7 +552,7 @@ bool pfc_error = false;
 		pfc_error = true;
 	}
 
-	return (pfc_error);
+	return (pfc_error | magnet_error );
 }
 
 float get_pfc_temp(void) {
@@ -634,80 +635,88 @@ static void terminal_motor_run(int argc , const char **argv) {
 		commands_printf("Stop...");
 }
 
-/* This thread is used for magnetic encoder and switch input.
- */
+/* Thread to read encoder function and switch position */
+
 static THD_FUNCTION(speed_thread, arg) {
-	(void)arg;
+    (void)arg;
 
-	chRegSetThreadName("speed_pid");
+    chRegSetThreadName("speed_pid");
 
-	chThdSleepMilliseconds(5000);
+    chThdSleepMilliseconds(5000);
 
-	static systime_t last_magnet_ok_time = 0;
+    static systime_t last_magnet_ok_time = 0;
 
-	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
-	uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
+    uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
+    uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
 
-	float ema_coef = 0.2; // smoothing factor
+    for(;;) {
+        uint16_t encoder_samples[5];
+        int valid_samples = 0;
 
-	for(;;) {
+    // take 5 samples from encoder.
+        for (int i = 0; i < 5; i++) {
+            uint16_t value_high = mt6816_read_register(reg_addr_1);
+            uint16_t value_low = mt6816_read_register(reg_addr_2);
+            uint16_t value_total = (value_high << 8) | value_low;
 
-			encoder_value_high = mt6816_read_register(reg_addr_1);
-			encoder_value_low = mt6816_read_register(reg_addr_2);
+            if (spi_bb_check_parity(value_total)) { // Just keep valid data.
+                encoder_samples[valid_samples++] = value_total;
+            }
+            chThdSleepMilliseconds(5);
+        }
 
-			encoder_total_value = (encoder_value_high << 8) | encoder_value_low;
+        uint16_t filtered_encoder = 0;
+        if (valid_samples == 0) {
+            parity_check = false;
+        } else if (valid_samples == 1) {
+            filtered_encoder = encoder_samples[0];
+            parity_check = true;
+        } else {
+            // Here the samples are sorted to get the median value..(based on AN4515 - median filter)
+        	for (int i = 0; i < valid_samples - 1; i++) {
+                for (int j = i + 1; j < valid_samples; j++) {
+                    if (encoder_samples[i] > encoder_samples[j]) {
+                        uint16_t tmp = encoder_samples[i];
+                        encoder_samples[i] = encoder_samples[j];
+                        encoder_samples[j] = tmp;
+                    }
+                }
+            }
+            // get the median value of the 5 samples..
+            filtered_encoder = encoder_samples[valid_samples / 2];
+            parity_check = true;
+        }
 
+        encoder_total_value = filtered_encoder;
 
-		    if(spi_bb_check_parity(encoder_total_value)) {
-			if((encoder_total_value & 0x02)) {
-				// error magnet here!
-			}
-			else {
-				encoder_magnet_check = 0;
-				parity_check = true;
-				encoder_setpoint = encoder_total_value >> 2;
-				UTILS_LP_MOVING_AVG_APPROX(encoder_setpoint_filtered, encoder_setpoint, 10);
-				encoder_setpoint_ema = (ema_coef * encoder_setpoint_filtered) + ((1.0 - ema_coef) * encoder_setpoint_ema); // for 0.05 is too slow
-				last_magnet_ok_time = chVTGetSystemTimeX();
-				}
-		}
+        if(parity_check && !(filtered_encoder & 0x02)) {
+        	encoder_magnet_check = 0;
+        	encoder_setpoint = filtered_encoder >> 2;
+            last_magnet_ok_time = chVTGetSystemTimeX();
+        }
 
-		else {
-			parity_check = false;
-		}
-       // No magnet timeout
-		if ((encoder_total_value & 0x02) && (chVTTimeElapsedSinceX(last_magnet_ok_time) > MS2ST(MAGNET_TIMEOUT_MS))) {
-		            encoder_magnet_check = 1;
-		        }
+        // No magnet timeout
+        if ((filtered_encoder & 0x02) && (chVTTimeElapsedSinceX(last_magnet_ok_time) > MS2ST(MAGNET_TIMEOUT_MS))) {
+            encoder_magnet_check = 1;
+        }
 
-		if(is_pfc_ok()) {
-			palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
+        if(is_pfc_ok()) {
+            palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
-			if(!is_sw_position() && !encoder_magnet_check && parity_check) {//(!is_sw_position() && is_calibration_done) { // if(!encoder_magnet_check && !is_sw_position() && is_calibration_done)
-				encoder_rel = encoder_relative_val(encoder_setpoint_ema);
-				speed_setpoint = utils_map(encoder_relative_val(encoder_setpoint_ema), 0.0 , 0.99, 0.0, 6400); // keep in mind the pairs pole
-				//speed_setpoint = roundf(speed_setpoint/400.0) * 400.0;
-				timeout_reset();
-				mc_interface_set_pid_speed(speed_setpoint);
-			}
-			else {
-				//encoder_rel = 0.0;
-				//encoder_rel_ema = 0.0;
-				//speed_setpoint = 0.0;
-			}
+            if(!is_sw_position() && !encoder_magnet_check && parity_check) {
+                encoder_rel = encoder_relative_val (encoder_setpoint);
+                speed_setpoint = utils_map(encoder_rel, 0.0 , 0.99, 0.0, 6400);
+                timeout_reset();
+                mc_interface_set_pid_speed(speed_setpoint);
+            }
 
-		if(!is_momentary_position() && is_calibration_done) {
-			speed_setpoint = 3200;
-			}
-		}
-		else {
-			palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
-		}
-		chThdSleepMilliseconds(100); // 100
-	}
+            if(!is_momentary_position() && is_calibration_done) {
+                speed_setpoint = 3200;
+            }
+        }
+        else {
+            palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
+        }
+        chThdSleepMilliseconds(75); //
+    }
 }
-
-// Add jump values from 100 to 100
-
-// it means that in erpm the step are 400.
-
