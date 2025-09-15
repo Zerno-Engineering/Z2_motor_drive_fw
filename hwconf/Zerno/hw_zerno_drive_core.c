@@ -712,7 +712,7 @@ static THD_FUNCTION(speed_thread, arg) {
             }
 
             if(!is_momentary_position() && is_calibration_done) {
-                speed_setpoint = 3200;
+                speed_setpoint = 8000; // TODO:add a safe condition here...
                 timeout_reset();
                 mc_interface_set_pid_speed(speed_setpoint);
             }
