@@ -703,16 +703,18 @@ static THD_FUNCTION(speed_thread, arg) {
         if(is_pfc_ok()) {
             palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
-            if(!is_sw_position() && !encoder_magnet_check && parity_check) {
+            if(!is_sw_position() && !encoder_magnet_check && parity_check && is_calibration_done) {
                 encoder_rel = encoder_relative_val (encoder_setpoint);
                 speed_setpoint = utils_map(encoder_rel, 0.0 , 0.99, 0.0, 6400);
                 speed_setpoint = round(speed_setpoint/400)*400; // round the values . steps of 400
-               // timeout_reset();
-               // mc_interface_set_pid_speed(speed_setpoint);
+                timeout_reset();
+                mc_interface_set_pid_speed(speed_setpoint);
             }
 
             if(!is_momentary_position() && is_calibration_done) {
                 speed_setpoint = 3200;
+                timeout_reset();
+                mc_interface_set_pid_speed(speed_setpoint);
             }
         }
         else {
