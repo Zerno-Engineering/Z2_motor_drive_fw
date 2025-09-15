@@ -59,6 +59,7 @@ int is_calibration_done = 0 ;
 //static uint16_t mt6816_spi_transfer(uint16_t out);
 //static uint16_t mt6816_read_register(uint8_t reg_addr);
 float_t encoder_relative_val(uint16_t data_encoder);
+static void zerno_callback(void);
 
 void spi_delay(void);
 void cs_delay(void);
@@ -67,8 +68,11 @@ void encoder_calibrate_offset(void);
 void pid_speed(float set_rpm);
 
 bool is_pfc_ok(void);
+
 bool motor_start = false;
 bool parity_check = false;
+bool enable_spi = false;
+
 float get_pfc_temp(void);
 
 // Variables
@@ -243,6 +247,8 @@ void hw_init_gpio(void) {
 				"on/off",
 				0,
 				terminal_motor_run);
+
+	mc_interface_set_pwm_callback (zerno_callback); // Set a function that should be called after each PWM cycle.
 
 }
 
@@ -472,7 +478,9 @@ float_t encoder_relative_val(uint16_t data_encoder) {
 	float relative;
 	float calibrated_val;
 
-	calibrated_val = (float)(data_encoder-encoder_min_value) ;
+	data_encoder += 100;
+
+	calibrated_val = (float)(data_encoder-encoder_min_value); // need to add a correction factor
 
 	if(calibrated_val < 0) {
 		calibrated_val += encoder_max_value;
@@ -559,6 +567,13 @@ void pid_speed(float set_rpm) {
     mc_interface_set_pid_speed(set_rpm); //
 }
 
+static void zerno_callback(void) {
+	// Called for every control iteration in interrupt context.
+    //enable_spi = true;
+	// add a flag here
+}
+
+
 static void terminal_print_info(int argc, const char **argv) {
 	(void)argc;
 	(void)argv;
@@ -626,6 +641,8 @@ static THD_FUNCTION(speed_thread, arg) {
 
 	chRegSetThreadName("speed_pid");
 
+	chThdSleepMilliseconds(5000);
+
 	static systime_t last_magnet_ok_time = 0;
 
 	uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
@@ -669,13 +686,14 @@ static THD_FUNCTION(speed_thread, arg) {
 			if(!is_sw_position() && !encoder_magnet_check && parity_check) {//(!is_sw_position() && is_calibration_done) { // if(!encoder_magnet_check && !is_sw_position() && is_calibration_done)
 				encoder_rel = encoder_relative_val(encoder_setpoint_ema);
 				speed_setpoint = utils_map(encoder_relative_val(encoder_setpoint_ema), 0.0 , 0.99, 0.0, 6400); // keep in mind the pairs pole
+				//speed_setpoint = roundf(speed_setpoint/400.0) * 400.0;
 				timeout_reset();
 				mc_interface_set_pid_speed(speed_setpoint);
 			}
 			else {
-				encoder_rel = 0.0;
-				encoder_rel_ema = 0.0;
-				speed_setpoint = 0.0;
+				//encoder_rel = 0.0;
+				//encoder_rel_ema = 0.0;
+				//speed_setpoint = 0.0;
 			}
 
 		if(!is_momentary_position() && is_calibration_done) {
@@ -685,6 +703,11 @@ static THD_FUNCTION(speed_thread, arg) {
 		else {
 			palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 		}
-		chThdSleepMilliseconds(100); // 50
+		chThdSleepMilliseconds(100); // 100
 	}
 }
+
+// Add jump values from 100 to 100
+
+// it means that in erpm the step are 400.
+
