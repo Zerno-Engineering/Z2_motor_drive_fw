@@ -479,7 +479,7 @@ float_t encoder_relative_val(uint16_t data_encoder) {
 	float relative;
 	float calibrated_val;
 
-	data_encoder += 100;
+	data_encoder += 300;
 
 	calibrated_val = (float)(data_encoder-encoder_min_value); // need to add a correction factor
 
@@ -706,8 +706,9 @@ static THD_FUNCTION(speed_thread, arg) {
             if(!is_sw_position() && !encoder_magnet_check && parity_check) {
                 encoder_rel = encoder_relative_val (encoder_setpoint);
                 speed_setpoint = utils_map(encoder_rel, 0.0 , 0.99, 0.0, 6400);
-                timeout_reset();
-                mc_interface_set_pid_speed(speed_setpoint);
+                speed_setpoint = round(speed_setpoint/400)*400; // round the values . steps of 400
+               // timeout_reset();
+               // mc_interface_set_pid_speed(speed_setpoint);
             }
 
             if(!is_momentary_position() && is_calibration_done) {
