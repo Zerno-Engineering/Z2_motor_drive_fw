@@ -635,12 +635,13 @@ static THD_FUNCTION(speed_thread, arg) {
 
 	for(;;) {
 
-		encoder_value_high = mt6816_read_register(reg_addr_1);
-		encoder_value_low = mt6816_read_register(reg_addr_2);
+			encoder_value_high = mt6816_read_register(reg_addr_1);
+			encoder_value_low = mt6816_read_register(reg_addr_2);
 
-		encoder_total_value = (encoder_value_high << 8) | encoder_value_low;
+			encoder_total_value = (encoder_value_high << 8) | encoder_value_low;
 
-		if(spi_bb_check_parity(encoder_total_value)) {
+
+		    if(spi_bb_check_parity(encoder_total_value)) {
 			if((encoder_total_value & 0x02)) {
 				// error magnet here!
 			}
