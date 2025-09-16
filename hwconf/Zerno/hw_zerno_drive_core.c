@@ -601,18 +601,14 @@ static void terminal_print_info(int argc, const char **argv) {
 
 	if(encoder_magnet_check) {
 		commands_printf("Magnet status: MAGNET ERROR"); // This can be added as a custom error
-		commands_printf("Encoder value: %d", encoder_total_value);
-		commands_printf("Encoder value filtered; %d" , encoder_value_filtered);
+		commands_printf("Encoder value: %d", encoder_setpoint);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
-		commands_printf("EMA filter: %f", (double)encoder_rel_ema);
 		commands_printf("speed: %f", (double)speed_setpoint);
 	}
 		else {
 	    commands_printf("Magnet status: MAGNET OK");
-		commands_printf("Encoder value: %d", encoder_total_value);
-		commands_printf("Encoder value filtered; %d" , encoder_value_filtered);
+		commands_printf("Encoder value: %d", encoder_setpoint);
 		commands_printf("Encoder rel: %f", (double)encoder_rel);
-		commands_printf("EMA filter: %f", (double)encoder_rel_ema);
 		commands_printf("speed: %f", (double)speed_setpoint);
 	}
 }
