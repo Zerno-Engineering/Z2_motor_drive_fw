@@ -57,9 +57,9 @@ volatile float encoder_setpoint_ema = 0.0; // Add this line at the top with othe
 // variable for test purposes
 int is_calibration_done = 0 ;
 
-//static uint16_t mt6816_spi_transfer(uint16_t out);
-//static uint16_t mt6816_read_register(uint8_t reg_addr);
 float_t encoder_relative_val(uint16_t data_encoder);
+float get_pfc_temp(void);
+
 static void zerno_callback(void);
 
 void spi_delay(void);
@@ -69,20 +69,14 @@ void encoder_calibrate_offset(void);
 void pid_speed(float set_rpm);
 
 bool is_pfc_ok(void);
-
 bool motor_start = false;
 bool parity_check = false;
 bool enable_spi = false;
 bool safety_calibration = false;
 
-float get_pfc_temp(void);
-
 // Variables
 static volatile bool i2c_running = false;
 static mutex_t shutdown_mutex;
-
-static bool shutdown_pressed = false;
-static int shutdown_pressed_time = 0;
 
 // I2C configuration
 static const I2CConfig i2cfg = {
@@ -92,8 +86,6 @@ static const I2CConfig i2cfg = {
 };
 
 // Private functions
-static void terminal_shutdown_now(int argc, const char **argv);
-static void terminal_button_test(int argc, const char **argv);
 static void terminal_print_info(int argc, const char **argv);
 static void terminal_motor_run(int argc , const char **argv);
 
@@ -170,10 +162,6 @@ void hw_init_gpio(void) {
 	palSetPadMode(CAN_EN_GPIO, CAN_EN_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
 	palClearPad(CAN_EN_GPIO, CAN_EN_PIN);
 
-	//Shutdown
-	palSetPadMode(HW_SHUTDOWN_GPIO, HW_SHUTDOWN_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
-    palSetPadMode(HW_SHUTDOWN_SENSE_GPIO, HW_SHUTDOWN_SENSE_PIN, PAL_MODE_INPUT);
-
 	// ADC Pins
     palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 1, PAL_MODE_INPUT_ANALOG);
@@ -225,18 +213,6 @@ void hw_init_gpio(void) {
 				chThdCreateStatic(speed_thread_wa, sizeof(speed_thread_wa), NORMALPRIO, speed_thread, NULL);
 				speed_thread_running = true;
 			}
-
-	terminal_register_command_callback(
-			"shutdown",
-			"Shutdown VESC now.",
-			0,
-			terminal_shutdown_now);
-
-	terminal_register_command_callback(
-			"test_button",
-			"Try sampling the shutdown button",
-			0,
-			terminal_button_test);
 
 	terminal_register_command_callback(
 			"encoder_status",
@@ -384,42 +360,6 @@ void hw_try_restore_i2c(void) {
 
 		i2cReleaseBus(&HW_I2C_DEV);
 	}
-}
-
-bool hw_sample_shutdown_button(void) {
-
-	chMtxLock(&shutdown_mutex);
-	shutdown_pressed = palReadPad(HW_SHUTDOWN_SENSE_GPIO, HW_SHUTDOWN_SENSE_PIN) == PAL_HIGH;
-	chMtxUnlock(&shutdown_mutex);
-	if(shutdown_pressed){
-		shutdown_pressed_time += 10;
-		return true;
-	}else{
-		if(shutdown_pressed_time > 1000){
-			shutdown_pressed_time = 0;
-			return false;
-		}else{
-			shutdown_pressed_time = 0;
-			return true;
-		}
-	}
-}
-
-static void terminal_shutdown_now(int argc, const char **argv) {
-	(void)argc;
-	(void)argv;
-	DISABLE_GATE();
-	HW_SHUTDOWN_HOLD_OFF();
-}
-
-static void terminal_button_test(int argc, const char **argv) {
-	(void)argc;
-	(void)argv;
-
-	//for (int i = 0;i < 40;i++) {
-	//	commands_printf("BT: %d %.2f", HW_SAMPLE_SHUTDOWN(), (double)bt_diff);
-	//	chThdSleepMilliseconds(100);
-	//}
 }
 
 void spi_delay(void) {

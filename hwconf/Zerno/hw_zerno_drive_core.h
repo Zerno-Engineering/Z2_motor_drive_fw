@@ -114,15 +114,6 @@
 #define CURRENT_FILTER_OFF()	palClearPad(CURRENT_FILTER_GPIO, CURRENT_FILTER_PIN)
 */
 
-// Shutdown pin
-#define HW_SHUTDOWN_GPIO		GPIOB
-#define HW_SHUTDOWN_PIN			0
-#define HW_SHUTDOWN_SENSE_GPIO 	GPIOC
-#define HW_SHUTDOWN_SENSE_PIN	5
-#define HW_SHUTDOWN_HOLD_ON()	palSetPad(HW_SHUTDOWN_GPIO, HW_SHUTDOWN_PIN)
-#define HW_SHUTDOWN_HOLD_OFF()	palClearPad(HW_SHUTDOWN_GPIO, HW_SHUTDOWN_PIN)
-#define HW_SAMPLE_SHUTDOWN()	hw_sample_shutdown_button()
-
 // Vdiv en
 #define PHASE_VDIV_GPIO			GPIOA
 #define PHASE_VDIV_PIN			15
@@ -135,11 +126,6 @@
 #define CAN_EN_GPIO				GPIOB
 #define CAN_EN_PIN				2
 
-// Hold shutdown pin early to wake up on short pulses
-#define HW_EARLY_INIT()			palSetPadMode(HW_SHUTDOWN_GPIO, HW_SHUTDOWN_PIN, PAL_MODE_OUTPUT_PUSHPULL); \
-								HW_SHUTDOWN_HOLD_ON(); \
-								palSetPadMode(PHASE_VDIV_GPIO, PHASE_VDIV_PIN, PAL_MODE_OUTPUT_PUSHPULL); \
-								palSetPad(PHASE_VDIV_GPIO, PHASE_VDIV_PIN);
 /*
  * ADC Vector
  *
@@ -290,34 +276,6 @@
 #define HW_SPI_PIN_MOSI			12
 #define HW_SPI_PORT_MISO		GPIOC
 #define HW_SPI_PIN_MISO			11
-
-// BMI160
-//#define BMI160_SPI_PORT_NSS		GPIOC
-#define BMI160_SPI_PIN_NSS		13
-#define BMI160_SPI_PORT_SCK		GPIOB
-#define BMI160_SPI_PIN_SCK		12
-#define BMI160_SPI_PORT_MOSI	GPIOB
-#define BMI160_SPI_PIN_MOSI		3
-#define BMI160_SPI_PORT_MISO	GPIOB
-#define BMI160_SPI_PIN_MISO		4
-
-// NRF SWD
-//#define NRF5x_SWDIO_GPIO		GPIOB
-//#define NRF5x_SWDIO_PIN			0
-//#define NRF5x_SWCLK_GPIO		GPIOB
-//#define NRF5x_SWCLK_PIN			1
-
-// Permanent UART
-/*
-#define HW_UART_P_BAUD			115200
-#define HW_UART_P_DEV			SD4
-#define HW_UART_P_DEV_TX		SD4
-#define HW_UART_P_GPIO_AF		GPIO_AF_UART4
-#define HW_UART_P_TX_PORT		GPIOC
-#define HW_UART_P_TX_PIN		10
-#define HW_UART_P_RX_PORT		GPIOC
-#define HW_UART_P_RX_PIN		11
-*/
 
 // Measurement macros
 #define ADC_V_L1				ADC_Value[ADC_IND_SENS1]
