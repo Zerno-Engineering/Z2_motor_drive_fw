@@ -27,6 +27,7 @@
 #include "spi.h"
 #include "spi_bb.h"
 #include "timeout.h"
+#include "mempools.h"
 
 #include <string.h>
 #include <math.h>
@@ -71,7 +72,8 @@ bool motor_start = false;
 bool parity_check = false;
 bool enable_spi = false;
 bool safety_calibration = false;
-
+bool is_erpm_done = false;
+bool is_default_erpm = true;
 // Variables
 static volatile bool i2c_running = false;
 static mutex_t shutdown_mutex;
@@ -475,6 +477,26 @@ void encoder_calibrate_offset(void) {
 	}
 }
 
+void set_erpm_ramp_response(void) {
+	mc_configuration *mcconf = mempools_alloc_mcconf();
+	*mcconf = *mc_interface_get_configuration();
+	mc_configuration *mcconf_old = mempools_alloc_mcconf();
+	*mcconf_old = *mcconf;
+
+	if(!is_default_erpm)
+		mcconf->s_pid_ramp_erpms_s = 10000.0;
+	else
+		mcconf->s_pid_ramp_erpms_s = 25000.0;
+
+	mc_interface_set_configuration(mcconf_old);
+	mc_interface_set_configuration(mcconf);
+
+	mempools_free_mcconf(mcconf);
+	mempools_free_mcconf(mcconf_old);
+
+	is_erpm_done = true;
+}
+
 bool is_hw_fault(void) {
 
 bool magnet_error = false;
@@ -639,6 +661,10 @@ static THD_FUNCTION(speed_thread, arg) {
 
             if(!is_momentary_position() && is_calibration_done) {
             	if(!safety_calibration) {
+            		if(!is_erpm_done) {
+            			is_default_erpm = false;
+            			set_erpm_ramp_response();
+            		}
             		speed_setpoint = 8000;
             		timeout_reset();
             		mc_interface_set_pid_speed(speed_setpoint);
@@ -646,6 +672,12 @@ static THD_FUNCTION(speed_thread, arg) {
             }
             else {
             	safety_calibration = false;
+            	is_erpm_done = false;
+
+            	if(!is_default_erpm) {
+            		is_default_erpm = true;
+            		set_erpm_ramp_response();
+            	}
             }
         }
         else {
