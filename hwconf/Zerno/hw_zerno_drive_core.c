@@ -60,8 +60,6 @@ int is_calibration_done = 0 ;
 float_t encoder_relative_val(uint16_t data_encoder);
 float get_pfc_temp(void);
 
-static void zerno_callback(void);
-
 void spi_delay(void);
 void cs_delay(void);
 void define_default_values(void);
@@ -225,9 +223,6 @@ void hw_init_gpio(void) {
 				"on/off",
 				0,
 				terminal_motor_run);
-
-	mc_interface_set_pwm_callback (zerno_callback); // Set a function that should be called after each PWM cycle.
-
 }
 
 void hw_setup_adc_channels(void) {
@@ -509,13 +504,6 @@ void pid_speed(float set_rpm) {
 	timeout_reset();
     mc_interface_set_pid_speed(set_rpm); //
 }
-
-static void zerno_callback(void) {
-	// Called for every control iteration in interrupt context.
-    //enable_spi = true;
-	// add a flag here
-}
-
 
 static void terminal_print_info(int argc, const char **argv) {
 	(void)argc;
