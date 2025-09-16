@@ -73,6 +73,7 @@ bool is_pfc_ok(void);
 bool motor_start = false;
 bool parity_check = false;
 bool enable_spi = false;
+bool safety_calibration = false;
 
 float get_pfc_temp(void);
 
@@ -535,6 +536,7 @@ void encoder_calibrate_offset(void) {
 		is_calibration_done = 1;
 		calibration_check.as_i32 = is_calibration_done;
 		conf_general_store_eeprom_var_hw(&calibration_check, EEPROM_ADDR_CALIBRATION_CHECK);
+		safety_calibration = true;
 	}
 }
 
@@ -712,9 +714,14 @@ static THD_FUNCTION(speed_thread, arg) {
             }
 
             if(!is_momentary_position() && is_calibration_done) {
-                speed_setpoint = 8000; // TODO:add a safe condition here...
-                timeout_reset();
-                mc_interface_set_pid_speed(speed_setpoint);
+            	if(!safety_calibration) {
+            		speed_setpoint = 8000;
+            		timeout_reset();
+            		mc_interface_set_pid_speed(speed_setpoint);
+            	}
+            }
+            else {
+            	safety_calibration = false;
             }
         }
         else {
