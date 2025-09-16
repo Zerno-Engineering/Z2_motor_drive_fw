@@ -28,6 +28,7 @@
 #include "spi_bb.h"
 #include "timeout.h"
 #include "mempools.h"
+#include "mcpwm_foc.h"
 
 #include <string.h>
 #include <math.h>
@@ -74,9 +75,10 @@ bool enable_spi = false;
 bool safety_calibration = false;
 bool is_erpm_done = false;
 bool is_default_erpm = true;
+bool is_encoder_done = false;
+
 // Variables
 static volatile bool i2c_running = false;
-static mutex_t shutdown_mutex;
 
 // I2C configuration
 static const I2CConfig i2cfg = {
@@ -90,7 +92,6 @@ static void terminal_print_info(int argc, const char **argv);
 static void terminal_motor_run(int argc , const char **argv);
 
 void hw_init_gpio(void) {
-	chMtxObjectInit(&shutdown_mutex);
 
 	// GPIO clock enable
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
@@ -497,6 +498,31 @@ void set_erpm_ramp_response(void) {
 	is_erpm_done = true;
 }
 
+void encoder_cal_detection(void) {
+
+	mc_configuration *mcconf = mempools_alloc_mcconf();
+	*mcconf = *mc_interface_get_configuration();
+	mc_configuration *mcconf_old = mempools_alloc_mcconf();
+	*mcconf_old = *mcconf;
+
+	float current = 1.0;
+	float offset = 0.0;
+	float ratio = 0.0;
+	bool inverted = false;
+
+	mcpwm_foc_encoder_detect(current, false, &offset, &ratio, &inverted);
+
+	mcconf_old->foc_encoder_offset = offset;
+	mcconf->foc_encoder_offset = offset;
+
+	mc_interface_set_configuration(mcconf_old);
+	mc_interface_set_configuration(mcconf);
+
+	mempools_free_mcconf(mcconf);
+	mempools_free_mcconf(mcconf_old);
+
+}
+
 bool is_hw_fault(void) {
 
 bool magnet_error = false;
@@ -570,6 +596,7 @@ static void terminal_motor_run(int argc , const char **argv) {
 	if(strcmp(argv[1], "ON") == 0) {
 		commands_printf("Motor ON");
 		motor_start = true;
+		encoder_cal_detection();
 	}
 	if(strcmp(argv[1], "OFF") == 0) {
 		commands_printf("Motor OFF");
@@ -594,8 +621,8 @@ static THD_FUNCTION(speed_thread, arg) {
 
     static systime_t last_magnet_ok_time = 0;
 
-    uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
-    uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
+    const uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
+    const uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
 
     for(;;) {
         uint16_t encoder_samples[5];
@@ -669,11 +696,17 @@ static THD_FUNCTION(speed_thread, arg) {
             		timeout_reset();
             		mc_interface_set_pid_speed(speed_setpoint);
             	}
+            	else {
+            	   /* if(!is_encoder_done) {
+            	    	encoder_cal_detection();// perform the encoder_foc_calibration. Here will perform at first time.
+            	    	is_encoder_done = true; // perhaps it could be stored in vitual RAM.
+            	    }*/
+            	}
             }
             else {
             	safety_calibration = false;
             	is_erpm_done = false;
-
+            	//is_encoder_done = false;
             	if(!is_default_erpm) {
             		is_default_erpm = true;
             		set_erpm_ramp_response();
