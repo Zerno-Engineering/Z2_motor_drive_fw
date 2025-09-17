@@ -77,6 +77,7 @@ bool is_erpm_done = false;
 bool is_default_erpm = true;
 bool is_encoder_done = false;
 bool is_stop_state = false ;
+
 // Variables
 static volatile bool i2c_running = false;
 

@@ -322,7 +322,6 @@
 #define HW_LIM_TEMP_FET			-40.0, 110.0
 
 // Functions
-bool hw_sample_shutdown_button(void);
 bool is_momentary_position(void);
 bool is_sw_position(void);
 bool is_hw_fault(void);
