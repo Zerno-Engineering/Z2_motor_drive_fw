@@ -76,7 +76,7 @@ bool safety_calibration = false;
 bool is_erpm_done = false;
 bool is_default_erpm = true;
 bool is_encoder_done = false;
-
+bool is_stop_state = false ;
 // Variables
 static volatile bool i2c_running = false;
 
@@ -666,12 +666,21 @@ static THD_FUNCTION(speed_thread, arg) {
         if(is_pfc_ok()) {
             palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
+            if(is_sw_position() && is_momentary_position()) {
+                   if(is_stop_state) {
+            			timeout_reset();
+                       	mc_interface_set_pid_speed(0.0);
+                       	is_stop_state = false;
+                   	   }
+                   }
+
             if(!is_sw_position() && !encoder_magnet_check && parity_check && is_calibration_done) {
                 encoder_rel = encoder_relative_val (encoder_setpoint);
                 speed_setpoint = utils_map(encoder_rel, 0.0 , 0.99, 0.0, 6400);
                 speed_setpoint = round(speed_setpoint/400)*400; // round the values . steps of 400
                 timeout_reset();
                 mc_interface_set_pid_speed(speed_setpoint);
+                is_stop_state = true;
             }
 
             if(!is_momentary_position() && is_calibration_done) {
@@ -683,6 +692,7 @@ static THD_FUNCTION(speed_thread, arg) {
             		speed_setpoint = 8000;
             		timeout_reset();
             		mc_interface_set_pid_speed(speed_setpoint);
+            		is_stop_state = true;
             	}
             	else {
             	   /* if(!is_encoder_done) {
