@@ -176,8 +176,8 @@ void hw_init_gpio(void) {
 	palSetPadMode(HW_MOMENTARY_PORT, HW_MOMENTARY_PIN, PAL_MODE_INPUT_PULLUP);
 
 	// PFC interface signals
-	palSetPadMode(PFC_STATUS_PORT, PFC_STATUS_PIN, PAL_MODE_OUTPUT_PUSHPULL);
-	palSetPadMode(PFC_ENABLE_PORT, PFC_ENABLE_PIN, PAL_MODE_INPUT);
+	palSetPadMode(PFC_STATUS_PORT, PFC_STATUS_PIN, PAL_MODE_INPUT);
+	palSetPadMode(PFC_ENABLE_PORT, PFC_ENABLE_PIN, PAL_MODE_OUTPUT_PUSHPULL);
 
 	//palSetPadMode(GPIOB, 0, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOB, 1, PAL_MODE_INPUT_ANALOG);
@@ -197,10 +197,6 @@ void hw_init_gpio(void) {
 
 	encoder_calibrate_offset();
 
-	if(is_pfc_ok())
-		palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
-	else
-		palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
 	if (!speed_thread_running) {
 				chThdCreateStatic(speed_thread_wa, sizeof(speed_thread_wa), NORMALPRIO, speed_thread, NULL);
