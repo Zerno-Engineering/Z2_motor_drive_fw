@@ -51,7 +51,7 @@ volatile uint16_t encoder_total_value;
 volatile uint16_t encoder_value_filtered;
 volatile uint16_t encoder_setpoint;
 volatile uint16_t encoder_magnet_check;
-volatile float_t encoder_rel = 0.0;
+volatile float encoder_rel = 0.0;
 volatile float speed_setpoint = 0.0;
 volatile float encoder_rel_ema;
 volatile float encoder_setpoint_ema = 0.0; // Add this line at the top with other globals
@@ -59,7 +59,7 @@ volatile float encoder_setpoint_ema = 0.0; // Add this line at the top with othe
 // variable for test purposes
 int is_calibration_done = 0 ;
 
-float_t encoder_relative_val(uint16_t data_encoder);
+float encoder_relative_val(uint16_t data_encoder);
 float get_pfc_temp(void);
 
 void spi_delay(void);
@@ -406,7 +406,7 @@ uint16_t mt6816_read_register(uint8_t reg_addr) {
 	return reg_val;
 }
 
-float_t encoder_relative_val(uint16_t data_encoder) {
+float encoder_relative_val(uint16_t data_encoder) {
 	float relative;
 	float calibrated_val;
 
