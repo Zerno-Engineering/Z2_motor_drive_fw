@@ -475,7 +475,7 @@
 
 // Current Sample Mode
 #ifndef MCCONF_FOC_CURRENT_SAMPLE_MODE
-#define MCCONF_FOC_CURRENT_SAMPLE_MODE 0
+#define MCCONF_FOC_CURRENT_SAMPLE_MODE 1
 #endif
 
 // Saturation Compensation Mode
@@ -715,7 +715,7 @@
 
 // Allow Braking
 #ifndef MCCONF_S_PID_ALLOW_BRAKING
-#define MCCONF_S_PID_ALLOW_BRAKING 1
+#define MCCONF_S_PID_ALLOW_BRAKING 0
 #endif
 
 // Ramp eRPMs per second
