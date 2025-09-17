@@ -402,11 +402,11 @@ uint16_t mt6816_read_register(uint8_t reg_addr) {
 	return reg_val;
 }
 
-float encoder_relative_val(uint16_t data_encoder) {
+float_t encoder_relative_val(uint16_t data_encoder) {
 	float relative;
 	float calibrated_val;
 
-	data_encoder += 300;
+	data_encoder += 800;
 
 	calibrated_val = (float)(data_encoder-encoder_min_value); // need to add a correction factor
 
@@ -451,7 +451,7 @@ void encoder_calibrate_offset(void) {
 	encoder_value_high = mt6816_read_register(0x03);
 	encoder_value_low = mt6816_read_register(0x04);
 
-	encoder_total_value = (encoder_value_high << 6) | (encoder_value_low & (0xfc));
+	encoder_total_value = encoder_max_value - ((encoder_value_high << 6) | (encoder_value_low & (0xfc)));
 	encoder_magnet_check = (encoder_value_low & 0x02);
 
 	if(!is_momentary_position()) { //&& !encoder_magnet_check) { // perform a calibration during boot. Just check momentary positions. Check the initial value
@@ -654,7 +654,7 @@ static THD_FUNCTION(speed_thread, arg) {
 
         if(parity_check && !(filtered_encoder & 0x02)) {
         	encoder_magnet_check = 0;
-        	encoder_setpoint = filtered_encoder >> 2;
+        	encoder_setpoint = encoder_max_value - (filtered_encoder >> 2); // knob increase the encoder setpoint in clockwise
             last_magnet_ok_time = chVTGetSystemTimeX();
         }
 
