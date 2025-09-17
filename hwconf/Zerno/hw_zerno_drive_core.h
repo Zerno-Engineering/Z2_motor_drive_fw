@@ -165,7 +165,7 @@
 #define ADC_IND_EXT2			7
 #define ADC_IND_SHUTDOWN		10
 #define ADC_IND_TEMP_MOS		8
-#define ADC_IND_TEMP_MOS_2		15 // use for PFC temperature
+#define ADC_IND_TEMP_PFC		15 // use for PFC temperature
 #define ADC_IND_TEMP_MOTOR		9
 #define ADC_IND_VREFINT			12
 

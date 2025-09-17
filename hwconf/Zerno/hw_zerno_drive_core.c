@@ -543,7 +543,7 @@ bool pfc_error = false;
 float get_pfc_temp(void) {
 	static float temp_pfc_filtered = 0.0;
 
-	float temp_pfc = (1.0 / ((logf(NTC_RES(ADC_Value[ADC_IND_TEMP_MOS_2]) / 10000.0) / 3455.0) + (1.0 / 298.15)) - 273.15);
+	float temp_pfc = (1.0 / ((logf(NTC_RES(ADC_Value[ADC_IND_TEMP_PFC]) / 10000.0) / 3455.0) + (1.0 / 298.15)) - 273.15);
 	UTILS_LP_FAST(temp_pfc_filtered, temp_pfc, 0.1);
 	return temp_pfc_filtered;
 }
@@ -706,7 +706,6 @@ static THD_FUNCTION(speed_thread, arg) {
             else {
             	safety_calibration = false;
             	is_erpm_done = false;
-            	//is_encoder_done = false;
             	if(!is_default_erpm) {
             		is_default_erpm = true;
             		set_erpm_ramp_response();
