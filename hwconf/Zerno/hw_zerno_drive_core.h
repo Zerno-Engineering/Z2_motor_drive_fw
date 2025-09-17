@@ -118,14 +118,6 @@
 #define PHASE_VDIV_GPIO			GPIOA
 #define PHASE_VDIV_PIN			15
 
-// ZCD en
-#define ZCD_GPIO				GPIOC
-#define ZCD_PIN					13
-
-// CAN en
-#define CAN_EN_GPIO				GPIOB
-#define CAN_EN_PIN				2
-
 /*
  * ADC Vector
  *
