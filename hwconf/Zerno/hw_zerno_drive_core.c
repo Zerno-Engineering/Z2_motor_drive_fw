@@ -29,6 +29,7 @@
 #include "timeout.h"
 #include "mempools.h"
 #include "mcpwm_foc.h"
+#include "main.h"
 
 #include <string.h>
 #include <math.h>
@@ -197,7 +198,6 @@ void hw_init_gpio(void) {
 	define_default_values();
 
 	encoder_calibrate_offset();
-
 
 	if (!speed_thread_running) {
 				chThdCreateStatic(speed_thread_wa, sizeof(speed_thread_wa), NORMALPRIO, speed_thread, NULL);
@@ -494,6 +494,12 @@ void encoder_cal_detection(void) {
 	mc_configuration *mcconf_old = mempools_alloc_mcconf();
 	*mcconf_old = *mcconf;
 
+	mcconf->motor_type = MOTOR_TYPE_FOC;
+	mcconf->foc_f_zv = 10000.0;
+	mcconf->foc_current_kp = 0.01;
+	mcconf->foc_current_ki = 10.0;
+	mc_interface_set_configuration(mcconf);
+
 	float current = 1.0;
 	float offset = 0.0;
 	float ratio = 0.0;
@@ -504,12 +510,13 @@ void encoder_cal_detection(void) {
 	mcconf_old->foc_encoder_offset = offset;
 	mcconf->foc_encoder_offset = offset;
 
-	mc_interface_set_configuration(mcconf_old);
 	mc_interface_set_configuration(mcconf);
+	mc_interface_set_configuration(mcconf_old);
 
 	mempools_free_mcconf(mcconf);
 	mempools_free_mcconf(mcconf_old);
 
+	is_encoder_done = true;
 }
 
 bool is_hw_fault(void) {
@@ -526,7 +533,7 @@ bool pfc_error = false;
 		pfc_error = true;
 	}
 
-	return (pfc_error | magnet_error );
+	return (pfc_error || magnet_error );
 }
 
 float get_pfc_temp(void) {
@@ -696,15 +703,18 @@ static THD_FUNCTION(speed_thread, arg) {
             		is_stop_state = true;
             	}
             	else {
-            	   /* if(!is_encoder_done) {
+            	    if(!is_encoder_done) {
+            	    	while(!main_init_done()) { // here wait until the whole main configuration finish otherwise the encoder calibration won't work properly.
+            	    			chThdSleepMilliseconds(10);
+            	    		}
             	    	encoder_cal_detection();// perform the encoder_foc_calibration. Here will perform at first time.
-            	    	is_encoder_done = true; // perhaps it could be stored in vitual RAM.
-            	    }*/
+            	    }
             	}
             }
             else {
             	safety_calibration = false;
             	is_erpm_done = false;
+            	is_encoder_done = false;
             	if(!is_default_erpm) {
             		is_default_erpm = true;
             		set_erpm_ramp_response();
