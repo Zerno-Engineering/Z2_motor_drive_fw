@@ -407,7 +407,7 @@ float_t encoder_relative_val(uint16_t data_encoder) {
 	float relative;
 	float calibrated_val;
 
-	data_encoder += 800;
+	data_encoder += 2000;
 
 	calibrated_val = (float)(data_encoder-encoder_min_value); // need to add a correction factor
 
