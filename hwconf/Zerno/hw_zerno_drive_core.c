@@ -613,8 +613,6 @@ static THD_FUNCTION(speed_thread, arg) {
 
     chRegSetThreadName("speed_pid");
 
-    chThdSleepMilliseconds(5000);
-
     static systime_t last_magnet_ok_time = 0;
 
     const uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
