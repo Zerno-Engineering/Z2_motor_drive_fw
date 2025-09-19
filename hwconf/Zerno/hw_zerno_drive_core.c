@@ -500,7 +500,7 @@ void encoder_cal_detection(void) {
 	mcconf->foc_current_ki = 10.0;
 	mc_interface_set_configuration(mcconf);
 
-	float current = 1.0;
+	float current = 2.0;
 	float offset = 0.0;
 	float ratio = 0.0;
 	bool inverted = false;
