@@ -40,9 +40,13 @@
 #define MAGNET_TIMEOUT_MS 1000
 
 static THD_FUNCTION(speed_thread, arg);
+static THD_FUNCTION(encoder_thread, arg);
+
 static THD_WORKING_AREA(speed_thread_wa, 1024);
+static THD_WORKING_AREA(encoder_thread_wa, 1024);
 
 static bool speed_thread_running = false;
+static bool encoder_thread_running = false;
 
 volatile uint16_t encoder_max_value = 16384; // 14 bit max value
 volatile uint16_t encoder_min_value = 0; //not sure if will be 0, but need to be tested in hardware.
@@ -197,12 +201,17 @@ void hw_init_gpio(void) {
 	//DAC->DHR12R1 = 2047;
 	define_default_values();
 
-	encoder_calibrate_offset();
+	//encoder_calibrate_offset(); // disable calibrate offset to avoid  data encoder readings
 
 	if (!speed_thread_running) {
 				chThdCreateStatic(speed_thread_wa, sizeof(speed_thread_wa), NORMALPRIO, speed_thread, NULL);
 				speed_thread_running = true;
 			}
+
+	if (!encoder_thread_running) {
+					chThdCreateStatic(encoder_thread_wa, sizeof(encoder_thread_wa), NORMALPRIO, encoder_thread, NULL);
+					encoder_thread_running = true;
+				}
 
 	terminal_register_command_callback(
 			"encoder_status",
@@ -407,7 +416,7 @@ float_t encoder_relative_val(uint16_t data_encoder) {
 	float relative;
 	float calibrated_val;
 
-	data_encoder += 2000;
+	//data_encoder += 2000;
 
 	calibrated_val = (float)(data_encoder-encoder_min_value); // need to add a correction factor
 
@@ -613,61 +622,8 @@ static THD_FUNCTION(speed_thread, arg) {
 
     chRegSetThreadName("speed_pid");
 
-    static systime_t last_magnet_ok_time = 0;
-
-    const uint8_t reg_addr_1 = 0x03; // address to read the angle from the magnetic encoder.
-    const uint8_t reg_addr_2 = 0x04; // Register to check the magnetic flux and parity check. And get angle data from the latest 6 bit.
 
     for(;;) {
-        uint16_t encoder_samples[5];
-        int valid_samples = 0;
-
-    // take 5 samples from encoder.
-        for (int i = 0; i < 5; i++) {
-            uint16_t value_high = mt6816_read_register(reg_addr_1);
-            uint16_t value_low = mt6816_read_register(reg_addr_2);
-            uint16_t value_total = (value_high << 8) | value_low;
-
-            if (spi_bb_check_parity(value_total)) { // Just keep valid data.
-                encoder_samples[valid_samples++] = value_total;
-            }
-            chThdSleepMilliseconds(5);
-        }
-
-        uint16_t filtered_encoder = 0;
-        if (valid_samples == 0) {
-            parity_check = false;
-        } else if (valid_samples == 1) {
-            filtered_encoder = encoder_samples[0];
-            parity_check = true;
-        } else {
-            // Here the samples are sorted to get the median value..(based on AN4515 - median filter)
-        	for (int i = 0; i < valid_samples - 1; i++) {
-                for (int j = i + 1; j < valid_samples; j++) {
-                    if (encoder_samples[i] > encoder_samples[j]) {
-                        uint16_t tmp = encoder_samples[i];
-                        encoder_samples[i] = encoder_samples[j];
-                        encoder_samples[j] = tmp;
-                    }
-                }
-            }
-            // get the median value of the 5 samples..
-            filtered_encoder = encoder_samples[valid_samples / 2];
-            parity_check = true;
-        }
-
-        encoder_total_value = filtered_encoder;
-
-        if(parity_check && !(filtered_encoder & 0x02)) {
-        	encoder_magnet_check = 0;
-        	encoder_setpoint = encoder_max_value - (filtered_encoder >> 2); // knob increase the encoder setpoint in clockwise
-            last_magnet_ok_time = chVTGetSystemTimeX();
-        }
-
-        // No magnet timeout
-        if ((filtered_encoder & 0x02) && (chVTTimeElapsedSinceX(last_magnet_ok_time) > MS2ST(MAGNET_TIMEOUT_MS))) {
-            encoder_magnet_check = 1;
-        }
 
         if(is_pfc_ok()) {
             palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
@@ -682,7 +638,7 @@ static THD_FUNCTION(speed_thread, arg) {
 
             if(!is_sw_position() && !encoder_magnet_check && parity_check && is_calibration_done) {
                 encoder_rel = encoder_relative_val (encoder_setpoint);
-                speed_setpoint = utils_map(encoder_rel, 0.0 , 0.99, 0.0, 6400);
+                speed_setpoint = utils_map(encoder_rel, 0.0 , 1.0, 800, 6400);
                 speed_setpoint = round(speed_setpoint/400)*400; // round the values . steps of 400
                 timeout_reset();
                 mc_interface_set_pid_speed(speed_setpoint);
@@ -722,6 +678,116 @@ static THD_FUNCTION(speed_thread, arg) {
         else {
             palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
         }
-        chThdSleepMilliseconds(75); //
+        chThdSleepMilliseconds(100); //75
     }
+}
+
+static THD_FUNCTION(encoder_thread, arg) {
+    (void)arg;
+
+    chRegSetThreadName("encoder_readings");
+
+    MT6816_CS_HIGH();
+
+   // chThdSleepMilliseconds(5000); //75
+
+   /* 	static systime_t last_magnet_ok_time = 0;
+        static uint16_t prev_filtered_encoder = 0;
+        const uint16_t ENCODER_SPIKE_THRESHOLD = 200;
+
+        const uint8_t reg_addr_1 = 0x03;
+        const uint8_t reg_addr_2 = 0x04;
+
+        for(;;) {
+            int window_size = 5;
+            uint16_t encoder_samples[13];
+            int valid_samples = 0;
+
+            // here take 5 samples
+            for (int i = 0; i < window_size; i++) {
+                uint16_t value_high = mt6816_read_register(reg_addr_1);
+                uint16_t value_low = mt6816_read_register(reg_addr_2);
+                uint16_t value_total = (value_high << 8) | value_low;
+
+                if (spi_bb_check_parity(value_total)) {
+                    encoder_samples[valid_samples++] = value_total;
+                }
+                chThdSleepMilliseconds(20);
+            }
+
+            // Median filter with 5 samples
+            uint16_t filtered_encoder = 0;
+            if (valid_samples == 0) {
+                parity_check = false;
+            } else if (valid_samples == 1) {
+                filtered_encoder = encoder_samples[0];
+                parity_check = true;
+            } else {
+                // Sort samples
+                for (int i = 0; i < valid_samples - 1; i++) {
+                    for (int j = i + 1; j < valid_samples; j++) {
+                        if (encoder_samples[i] > encoder_samples[j]) {
+                            uint16_t tmp = encoder_samples[i];
+                            encoder_samples[i] = encoder_samples[j];
+                            encoder_samples[j] = tmp;
+                        }
+                    }
+                }
+                filtered_encoder = encoder_samples[valid_samples / 2];
+                parity_check = true;
+            }
+
+            // Here check if any spike is present
+            if (prev_filtered_encoder != 0) {
+                uint16_t diff = (filtered_encoder > prev_filtered_encoder) ?
+                    (filtered_encoder - prev_filtered_encoder) :
+                    (prev_filtered_encoder - filtered_encoder);
+
+                if (diff > ENCODER_SPIKE_THRESHOLD) { // check if any spike is present!!!
+                    // if a spike is detected increase the window sample to 9
+                    window_size = 13;
+                    valid_samples = 0;
+                    for (int i = 0; i < window_size; i++) {
+                        uint16_t value_high = mt6816_read_register(reg_addr_1);
+                        uint16_t value_low = mt6816_read_register(reg_addr_2);
+                        uint16_t value_total = (value_high << 8) | value_low;
+
+                        if (spi_bb_check_parity(value_total)) {
+                            encoder_samples[valid_samples++] = value_total;
+                        }
+                        chThdSleepMilliseconds(20);
+                    }
+                    // Sort array , need to get a sorted array to get the median filter
+                    for (int i = 0; i < valid_samples - 1; i++) {
+                        for (int j = i + 1; j < valid_samples; j++) {
+                            if (encoder_samples[i] > encoder_samples[j]) {
+                                uint16_t tmp = encoder_samples[i];
+                                encoder_samples[i] = encoder_samples[j];
+                                encoder_samples[j] = tmp;
+                            }
+                        }
+                    }
+                    filtered_encoder = encoder_samples[valid_samples / 2];
+                }
+            }
+            prev_filtered_encoder = filtered_encoder;
+
+            encoder_total_value = filtered_encoder;
+
+
+            if(parity_check && !(filtered_encoder & 0x02)) {
+                encoder_magnet_check = 0;
+                encoder_setpoint = encoder_max_value - (filtered_encoder >> 2);
+                last_magnet_ok_time = chVTGetSystemTimeX();
+            }
+
+            if ((filtered_encoder & 0x02) && (chVTTimeElapsedSinceX(last_magnet_ok_time) > MS2ST(MAGNET_TIMEOUT_MS))) {
+                encoder_magnet_check = 1;
+            }
+
+
+    	chThdSleepMilliseconds(50); // 100 works well
+    }*/
+
+    chThdSleepMilliseconds(50); // disable this thread
 }
