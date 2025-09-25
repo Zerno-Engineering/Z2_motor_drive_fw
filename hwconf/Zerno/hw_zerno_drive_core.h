@@ -195,6 +195,10 @@
 // log PFC temperature data
 #define NTC_TEMP_MOS2()			get_pfc_temp()
 
+// log the knob adc input
+
+//#define NTC_TEMP_MOS3()			get_adc_filtered()
+
 // Voltage on ADC channel
 #define ADC_VOLTS(ch)			((float)ADC_Value[ch] / 4096.0 * V_REG)
 
@@ -297,5 +301,7 @@ bool is_momentary_position(void);
 bool is_sw_position(void);
 bool is_hw_fault(void);
 float get_pfc_temp(void);
+float get_adc_filtered(void);
+
 
 #endif/* HW_ZERNO_DRIVE_CORE_H_ */
