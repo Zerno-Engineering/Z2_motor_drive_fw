@@ -190,14 +190,14 @@
 #define NTC_TEMP(adc_ind)		(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 10000.0) / 3455.0) + (1.0 / 298.15)) - 273.15)
 
 #define NTC_RES_MOTOR(adc_val)	(10000.0 / ((4095.0 / (float)adc_val) - 1.0))
-#define NTC_TEMP_MOTOR(beta)	(1.0 / ((logf(NTC_RES_MOTOR(ADC_Value[ADC_IND_TEMP_MOTOR]) / 10000.0) / beta) + (1.0 / 298.15)) - 273.15)
+#define NTC_TEMP_MOTOR(beta)	get_knob_read()//(1.0 / ((logf(NTC_RES_MOTOR(ADC_Value[ADC_IND_TEMP_MOTOR]) / 10000.0) / beta) + (1.0 / 298.15)) - 273.15)
 
 // log PFC temperature data
 #define NTC_TEMP_MOS2()			get_pfc_temp()
 
 // log the knob adc input
 
-//#define NTC_TEMP_MOS3()			get_adc_filtered()
+//#define NTC_TEMP_MOS3()			get_knob_read()
 
 // Voltage on ADC channel
 #define ADC_VOLTS(ch)			((float)ADC_Value[ch] / 4096.0 * V_REG)
@@ -302,6 +302,7 @@ bool is_sw_position(void);
 bool is_hw_fault(void);
 float get_pfc_temp(void);
 float get_adc_filtered(void);
+float get_knob_read(void);
 
 
 #endif/* HW_ZERNO_DRIVE_CORE_H_ */
