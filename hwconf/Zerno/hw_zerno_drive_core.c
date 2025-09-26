@@ -49,18 +49,16 @@ static THD_WORKING_AREA(encoder_thread_wa, 1024);
 static bool speed_thread_running = false;
 static bool encoder_thread_running = false;
 
-volatile uint16_t encoder_max_value = 16384; // 14 bit max value
-volatile uint16_t encoder_min_value = 0; //not sure if will be 0, but need to be tested in hardware.
+volatile float encoder_max_value = 3.2; // 14 bit max value
+volatile float encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
+volatile float encoder_total_value;
 volatile uint16_t encoder_value_high;
 volatile uint16_t encoder_value_low;
-volatile uint16_t encoder_total_value;
 volatile uint16_t encoder_value_filtered;
 volatile uint16_t encoder_setpoint;
 volatile uint16_t encoder_magnet_check;
 volatile float encoder_rel = 0.0;
 volatile float speed_setpoint = 0.0;
-volatile float encoder_rel_ema;
-volatile float encoder_setpoint_ema = 0.0; // Add this line at the top with other globals
 
 // variable for test purposes
 int is_calibration_done = 0 ;
@@ -204,9 +202,10 @@ void hw_init_gpio(void) {
 	//RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, ENABLE);
 	//DAC->CR |= DAC_CR_EN1;
 	//DAC->DHR12R1 = 2047;
+
 	define_default_values();
 
-	//encoder_calibrate_offset(); // disable calibrate offset to avoid  data encoder readings
+	encoder_calibrate_offset(); // disable calibrate offset to avoid  data encoder readings
 
 	if (!speed_thread_running) {
 				chThdCreateStatic(speed_thread_wa, sizeof(speed_thread_wa), NORMALPRIO, speed_thread, NULL);
@@ -453,7 +452,7 @@ void define_default_values(void) {
 	eeprom_var default_offset, default_calibration;
 
 	conf_general_read_eeprom_var_hw(&default_offset, EEPROM_ADDR_ENCODER_VALUE);
-	encoder_min_value = default_offset.as_i32;
+	encoder_min_value = default_offset.as_float;
 
 	conf_general_read_eeprom_var_hw(&default_calibration, EEPROM_ADDR_CALIBRATION_CHECK);
 	is_calibration_done = default_calibration.as_i32;
@@ -463,17 +462,13 @@ void encoder_calibrate_offset(void) {
 
 	eeprom_var offset_value, calibration_check;
 
-	encoder_value_high = mt6816_read_register(0x03);
-	encoder_value_low = mt6816_read_register(0x04);
-
-	encoder_total_value = encoder_max_value - ((encoder_value_high << 6) | (encoder_value_low & (0xfc)));
-	encoder_magnet_check = (encoder_value_low & 0x02);
+    encoder_total_value = ADC_VOLTS(ADC_IND_EXT);
 
 	if(!is_momentary_position()) { //&& !encoder_magnet_check) { // perform a calibration during boot. Just check momentary positions. Check the initial value
 		encoder_min_value = encoder_total_value;
-		offset_value.as_i32 = encoder_min_value;
+		offset_value.as_float = encoder_min_value;
 		conf_general_store_eeprom_var_hw(&offset_value, EEPROM_ADDR_ENCODER_VALUE);
-		encoder_max_value = 16384;
+		encoder_max_value = 3.2;
 		is_calibration_done = 1;
 		calibration_check.as_i32 = is_calibration_done;
 		conf_general_store_eeprom_var_hw(&calibration_check, EEPROM_ADDR_CALIBRATION_CHECK);
@@ -570,7 +565,7 @@ static void terminal_print_info(int argc, const char **argv) {
 	eeprom_var data_stored, check_cal;
 
 	conf_general_read_eeprom_var_hw(&data_stored, EEPROM_ADDR_ENCODER_VALUE);
-	//commands_printf("Encoder stored value: %d", data_stored.as_i32);
+	commands_printf("Encoder stored value: %f", (double)(data_stored.as_float));
 	conf_general_read_eeprom_var_hw(&check_cal, EEPROM_ADDR_CALIBRATION_CHECK);
 	//commands_printf("Calibration status: %d", check_cal.as_i32);
 
@@ -584,6 +579,11 @@ static void terminal_print_info(int argc, const char **argv) {
 		else
 			commands_printf("sw_pos:ON");
 
+	if(is_pfc_ok())
+		commands_printf("PFC:OK");
+	else
+		commands_printf("PFC:OFF");
+
         commands_printf("ADC: %f", (double)knob_read_1);
 
         commands_printf("ADC_cal: %f", (double)calib);
@@ -593,15 +593,21 @@ static void terminal_print_info(int argc, const char **argv) {
 	if(encoder_magnet_check) {
 		commands_printf("Magnet status: MAGNET ERROR"); // This can be added as a custom error
 		commands_printf("Encoder value: %d", encoder_setpoint);
-		commands_printf("Encoder rel: %f", (double)encoder_rel);
+		commands_printf("Encoder rel: %f", (double)encoder_min_value);
 		commands_printf("speed: %f", (double)speed_setpoint);
 	}
 		else {
 	    commands_printf("Magnet status: MAGNET OK");
 		commands_printf("Encoder value: %d", encoder_setpoint);
-		commands_printf("Encoder rel: %f", (double)encoder_rel);
+		commands_printf("Encoder rel: %f", (double)encoder_min_value);
 		commands_printf("speed: %f", (double)speed_setpoint);
 	}
+}
+
+float get_knob_read(void) {
+// to log the knob readings
+// Thi
+return(calib);
 }
 
 static void terminal_motor_run(int argc , const char **argv) {
@@ -646,13 +652,13 @@ static THD_FUNCTION(speed_thread, arg) {
                    	   }
                    }
 
-            if(!is_sw_position()) {
+            if(!is_sw_position() && is_calibration_done) {
                 timeout_reset();
                 mc_interface_set_pid_speed(speed_setpoint);
                 is_stop_state = true;
             }
 
-            if(!is_momentary_position()) { // && calibration_done
+            if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
             	if(!safety_calibration) {
             		if(!is_erpm_done) {
             			is_default_erpm = false;
@@ -668,6 +674,7 @@ static THD_FUNCTION(speed_thread, arg) {
             	    	while(!main_init_done()) { // here wait until the whole main configuration finish otherwise the encoder calibration won't work properly.
             	    			chThdSleepMilliseconds(10);
             	    		}
+            	    	encoder_calibrate_offset();// added here, need to wait for the ADC readings to calibrate the offset
             	    	encoder_cal_detection();// perform the encoder_foc_calibration. Here will perform at first time.
             	    }
             	}
@@ -696,42 +703,41 @@ static THD_FUNCTION(encoder_thread, arg) {
 
     chRegSetThreadName("encoder_readings");
 
-    chThdSleepMilliseconds(1000); //75
-
-
-    MT6816_CS_HIGH();
+    chThdSleepMilliseconds(1000);
 
   for(;;) {
 
-	    float samples[10];
-		float diff;
-		float aux= 0.0;
+	  float samples[15];
+	  float diff;
+	  float aux= 0.0;
 
-	    for( int i = 0 ; i<5 ; i++) {
-	    	knob_read_1 = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
-	    	samples[i] = knob_read_1;
-	    	 chThdSleepMilliseconds(20);
+	  for( int i = 0 ; i<15 ; i++) {
+		  knob_read_1 = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
+		  samples[i] = knob_read_1;
+		  chThdSleepMilliseconds(25);
+	  }
 
-	    	if(i!=0) {
-	    		diff = samples[i] - samples[i-1];
-	    		if(diff > 0.2) {
-	    			aux = 0.0;//samples[i-2];
-	    		}
-	    		else
-	    			aux = samples[i];
-	    	}
-	    }
+	  for (int i=0; i<15; i++) {
+		  if(i!=0) {
+			  diff = fabs(samples[i] - samples[i-1]);
+			  if(diff > 0.2) {
+				  aux = 0.0;
+			  }
+			  else
+				  aux = samples[i-1]- 0.05;
+		  }
+	  }
 
-	    calib = (float)(2.3 - aux); // need to add a correction factor
+	  //calib = (float)(2.3 - aux); // add a correction factor
+	  calib = (encoder_min_value - aux); // enable this to use the encoder calibration
 
-	    if(calib < 0) {
-	    	calib += 3.2;
-			 }
+	  if(calib < 0) {
+		  calib += 3.22;
+	  }
 
-	    speed_setpoint = utils_map(calib, 0.0, 3.1, 800, 6400);
+	  speed_setpoint = utils_map(calib, 0.0, 2.9, 800, 6400);
+	  speed_setpoint = round(speed_setpoint/400)*400;
 
-	    speed_setpoint = round(speed_setpoint/400)*400;
-
-	  chThdSleepMilliseconds(10); // disable this thread
+	  chThdSleepMilliseconds(10);
   }
 }
