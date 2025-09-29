@@ -52,26 +52,15 @@ static bool encoder_thread_running = false;
 volatile float encoder_max_value = 3.2; // 14 bit max value
 volatile float encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
 volatile float encoder_total_value;
-volatile uint16_t encoder_value_high;
-volatile uint16_t encoder_value_low;
-volatile uint16_t encoder_value_filtered;
-volatile uint16_t encoder_setpoint;
-volatile uint16_t encoder_magnet_check;
-volatile float encoder_rel = 0.0;
 volatile float speed_setpoint = 0.0;
 
 // variable for test purposes
 int is_calibration_done = 0 ;
 
-float encoder_relative_val(uint16_t data_encoder);
 float get_pfc_temp(void);
 float knob_read_1;
-float knob_read_2;
-
 float calib;
 
-void spi_delay(void);
-void cs_delay(void);
 void define_default_values(void);
 void encoder_calibrate_offset(void);
 void pid_speed(float set_rpm);
@@ -171,14 +160,6 @@ void hw_init_gpio(void) {
 	palSetPadMode(GPIOA, 3, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 5, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 6, PAL_MODE_INPUT_ANALOG);
-
-	// Magnetic encoder pins 
-	palSetPadMode(MT6816_MISO_PORT, MT6816_MISO_PIN, PAL_MODE_INPUT);
-	palSetPadMode(MT6816_MOSI_PORT, MT6816_MOSI_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(MT6816_CLK_PORT, MT6816_CLK_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
-	palSetPadMode(MT6816_CS_PORT, MT6816_CS_PIN, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
-
-	palSetPad(MT6816_CLK_PORT,MT6816_CLK_PIN); // starts with clock in HIGH state. Otherwise spi (bit banged) won't work.
 
 	// Switch input pins
 	palSetPadMode(HW_SW_PORT, HW_SW_PIN, PAL_MODE_INPUT_PULLUP);
@@ -362,77 +343,6 @@ void hw_try_restore_i2c(void) {
 	}
 }
 
-void spi_delay(void) {
-	// ~167ns long..
-	for (volatile int i = 0; i < 1; i++) { // for 1 : 3.5MHZ spi clock
-		__NOP();
-	}
-}
-
-void cs_delay(void) {
-
-	for (volatile int i = 0; i < 1; i++) {
-			__NOP();
-	}
-}
-
-uint16_t mt6816_spi_transfer(uint16_t out) {
-	uint16_t in = 0;
-	for (int i = 15; i >= 0; i--) {
-
-		if (out & (1 << i)) {
-			MT6816_MOSI_HIGH();
-		} else {
-			MT6816_MOSI_LOW();
-		}
-		MT6816_CLK_LOW();
-		spi_delay();
-		in <<= 1;
-		if (MT6816_MISO_READ()) {
-			in |= 1;
-		}
-		MT6816_CLK_HIGH();
-		spi_delay();
-	}
-	return in;
-}
-
-/*
-	Read register from MT6816:
-	According data sheet, the encoder value is 14Bits (16384)
-	and the data structure is shown like this:
-	to send: [R/W:1] [ADRESS = 0b00000011(0x03)] to get that value.
-*/
-uint16_t mt6816_read_register(uint8_t reg_addr) {
-	uint16_t cmd = 0x8000 | ((reg_addr & 0x7F) << 8); // R/W=1, 7-bit addr, rest 0 - prepare the frame to be sent.
-	uint16_t reg_val;
-
-	MT6816_CS_LOW();
-	cs_delay();//__NOP;//chThdSleepMicroseconds(1); // originally it was commented
-	reg_val = mt6816_spi_transfer(cmd);
-	MT6816_CS_HIGH();
-	cs_delay(); //__NOP;//chThdSleepMicroseconds(1);
-
-	return reg_val;
-}
-
-float_t encoder_relative_val(uint16_t data_encoder) {
-	float relative;
-	float calibrated_val;
-
-	//data_encoder += 2000;
-
-	calibrated_val = (float)(data_encoder-encoder_min_value); // need to add a correction factor
-
-	if(calibrated_val < 0) {
-		calibrated_val += encoder_max_value;
-	}
-
-	relative = calibrated_val/encoder_max_value; // comment this to send just the raw calibrated value from the encoder.
-
-	return relative;
-}
-
 bool is_momentary_position(void) {
 	return (bool)palReadPad(HW_MOMENTARY_PORT, HW_MOMENTARY_PIN);
 }
@@ -445,7 +355,7 @@ bool is_pfc_ok(void) {
 	return (bool)palReadPad(PFC_STATUS_PORT, PFC_STATUS_PIN);
 }
 
-/* Load the stored values during boot
+/* Load the stored values during start-up
  *
  */
 void define_default_values(void) {
@@ -464,7 +374,7 @@ void encoder_calibrate_offset(void) {
 
     encoder_total_value = ADC_VOLTS(ADC_IND_EXT);
 
-	if(!is_momentary_position()) { //&& !encoder_magnet_check) { // perform a calibration during boot. Just check momentary positions. Check the initial value
+	if(!is_momentary_position()) {
 		encoder_min_value = encoder_total_value;
 		offset_value.as_float = encoder_min_value;
 		conf_general_store_eeprom_var_hw(&offset_value, EEPROM_ADDR_ENCODER_VALUE);
@@ -529,20 +439,11 @@ void encoder_cal_detection(void) {
 }
 
 bool is_hw_fault(void) {
+	bool custom_fault = false;
 
-bool magnet_error = false;
-bool pfc_error = false;
+	//TODO: Add a custom fault here.
 
-	if(encoder_magnet_check) { // commented for test purposes
-		mc_interface_set_fault_info("FAULT_ENCODER_NO_MAGNET", 0, 0, 0);
-		magnet_error = true;
-	}
-	if(!is_pfc_ok()) {
-		mc_interface_set_fault_info("FAULT_PFC_ERROR",0,0,0);
-		pfc_error = true;
-	}
-
-	return (pfc_error || magnet_error );
+	return (custom_fault);
 }
 
 float get_pfc_temp(void) {
@@ -567,47 +468,20 @@ static void terminal_print_info(int argc, const char **argv) {
 	conf_general_read_eeprom_var_hw(&data_stored, EEPROM_ADDR_ENCODER_VALUE);
 	commands_printf("Encoder stored value: %f", (double)(data_stored.as_float));
 	conf_general_read_eeprom_var_hw(&check_cal, EEPROM_ADDR_CALIBRATION_CHECK);
-	//commands_printf("Calibration status: %d", check_cal.as_i32);
+	commands_printf("Calibration status: %d", check_cal.as_i32);
 
-	if(is_momentary_position())
-		commands_printf("Momentary_pos:OFF");
-	else
-		commands_printf("Momentary_pos:ON");
+	(is_momentary_position())? commands_printf("Momentary_pos:OFF") : commands_printf("Momentary_pos:ON");
+	(is_sw_position())? commands_printf("sw_pos:OFF") : commands_printf("sw_pos:ON");
+	(is_pfc_ok())? commands_printf("PFC:OK") : commands_printf("PFC:OFF");
 
-	if(is_sw_position())
-			commands_printf("sw_pos:OFF");
-		else
-			commands_printf("sw_pos:ON");
-
-	if(is_pfc_ok())
-		commands_printf("PFC:OK");
-	else
-		commands_printf("PFC:OFF");
-
-        commands_printf("ADC: %f", (double)knob_read_1);
-
-        commands_printf("ADC_cal: %f", (double)calib);
-
-        commands_printf("speed : %f",(double)speed_setpoint);
-
-	if(encoder_magnet_check) {
-		commands_printf("Magnet status: MAGNET ERROR"); // This can be added as a custom error
-		commands_printf("Encoder value: %d", encoder_setpoint);
-		commands_printf("Encoder rel: %f", (double)encoder_min_value);
-		commands_printf("speed: %f", (double)speed_setpoint);
-	}
-		else {
-	    commands_printf("Magnet status: MAGNET OK");
-		commands_printf("Encoder value: %d", encoder_setpoint);
-		commands_printf("Encoder rel: %f", (double)encoder_min_value);
-		commands_printf("speed: %f", (double)speed_setpoint);
-	}
+	commands_printf("ADC: %f", (double)knob_read_1);
+	commands_printf("ADC_cal: %f", (double)calib);
+	commands_printf("Encoder min: %f", (double)encoder_min_value);
+	commands_printf("speed: %f", (double)speed_setpoint);
 }
 
 float get_knob_read(void) {
-// to log the knob readings
-// Thi
-return(calib);
+	return(calib);
 }
 
 static void terminal_motor_run(int argc , const char **argv) {
@@ -632,12 +506,10 @@ static void terminal_motor_run(int argc , const char **argv) {
 }
 
 /* Thread to read encoder function and switch position */
-
 static THD_FUNCTION(speed_thread, arg) {
     (void)arg;
 
     chRegSetThreadName("speed_pid");
-
 
     for(;;) {
 
@@ -695,8 +567,6 @@ static THD_FUNCTION(speed_thread, arg) {
         chThdSleepMilliseconds(100);
     }
 }
-
-
 
 static THD_FUNCTION(encoder_thread, arg) {
     (void)arg;

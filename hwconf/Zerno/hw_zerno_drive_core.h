@@ -47,25 +47,6 @@
 #define HW_MOMENTARY_PORT		GPIOB
 #define HW_MOMENTARY_PIN		6     
 
-// Pin definitions for bit banging purposes
-#define MT6816_MISO_PORT	GPIOB
-#define MT6816_MISO_PIN		7
-#define MT6816_MOSI_PORT	GPIOB
-#define MT6816_MOSI_PIN		9
-#define MT6816_CLK_PORT		GPIOB
-#define MT6816_CLK_PIN		8
-#define MT6816_CS_PORT		GPIOC
-#define MT6816_CS_PIN		14
-
-// MT6816 macros (used for bit banging)
-#define MT6816_CLK_HIGH()   palSetPad(MT6816_CLK_PORT, MT6816_CLK_PIN)
-#define MT6816_CLK_LOW()    palClearPad(MT6816_CLK_PORT, MT6816_CLK_PIN)
-#define MT6816_CS_HIGH()    palSetPad(MT6816_CS_PORT, MT6816_CS_PIN)
-#define MT6816_CS_LOW()     palClearPad(MT6816_CS_PORT, MT6816_CS_PIN)
-#define MT6816_MOSI_HIGH()  palSetPad(MT6816_MOSI_PORT, MT6816_MOSI_PIN)
-#define MT6816_MOSI_LOW()   palClearPad(MT6816_MOSI_PORT, MT6816_MOSI_PIN)
-#define MT6816_MISO_READ()  palReadPad(MT6816_MISO_PORT, MT6816_MISO_PIN)
-
 // PFC status and enables pin
 #define PFC_STATUS_PORT		GPIOB
 #define PFC_STATUS_PIN		0
