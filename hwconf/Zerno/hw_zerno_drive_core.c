@@ -728,7 +728,6 @@ static THD_FUNCTION(encoder_thread, arg) {
 		  }
 	  }
 
-	  //calib = (float)(2.3 - aux); // add a correction factor
 	  calib = (encoder_min_value - aux); // enable this to use the encoder calibration
 
 	  if(calib < 0) {
