@@ -484,8 +484,7 @@ static void terminal_print_info(int argc, const char **argv) {
 	conf_general_read_eeprom_var_hw(&check_cal, EEPROM_ADDR_CALIBRATION_CHECK);
 	commands_printf("Calibration status: %d", check_cal.as_i32);
 
-	(is_momentary_position())? commands_printf("Momentary_pos:OFF") : commands_printf("Momentary_pos:ON");
-	(is_sw_position())? commands_printf("sw_pos:OFF") : commands_printf("sw_pos:ON");
+	commands_printf("Switch values: %f", (double)(main_switch_adc_value())); // check the switch position values
 	(is_pfc_ok())? commands_printf("PFC:OK") : commands_printf("PFC:OFF");
 
 	commands_printf("ADC: %f", (double)knob_read_1);
