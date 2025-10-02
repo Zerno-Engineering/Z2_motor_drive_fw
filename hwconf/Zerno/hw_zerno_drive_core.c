@@ -52,6 +52,7 @@ static bool encoder_thread_running = false;
 volatile float encoder_max_value = 3.2; // 14 bit max value
 volatile float encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
 volatile float encoder_total_value;
+volatile float main_switch_value;
 volatile float speed_setpoint = 0.0;
 
 // variable for test purposes
@@ -355,6 +356,17 @@ bool is_pfc_ok(void) {
 	return (bool)palReadPad(PFC_STATUS_PORT, PFC_STATUS_PIN);
 }
 
+/* Enable adc readings for main switch */
+
+float main_switch_adc_value(void) {
+	static float main_switch = 0.0;
+	static float main_switch_filtered = 0.0;
+
+	main_switch = ADC_VOLTS(ADC_IND_EXT2);
+	UTILS_LP_FAST(main_switch_filtered, main_switch, 0.1);
+
+	return main_switch_filtered;
+}
 /* Load the stored values during start-up
  *
  */
@@ -372,9 +384,11 @@ void encoder_calibrate_offset(void) {
 
 	eeprom_var offset_value, calibration_check;
 
-    encoder_total_value = ADC_VOLTS(ADC_IND_EXT);
+    encoder_total_value = ADC_VOLTS(ADC_IND_EXT); // get the knob position values
+    main_switch_value = ADC_VOLTS(ADC_IND_EXT2); // get the switch position values
 
-	if(!is_momentary_position()) {
+
+	if(main_switch_value < 0.2) {//if(!is_momentary_position()) {
 		encoder_min_value = encoder_total_value;
 		offset_value.as_float = encoder_min_value;
 		conf_general_store_eeprom_var_hw(&offset_value, EEPROM_ADDR_ENCODER_VALUE);
@@ -393,9 +407,9 @@ void set_erpm_ramp_response(void) {
 	*mcconf_old = *mcconf;
 
 	if(!is_default_erpm)
-		mcconf->s_pid_ramp_erpms_s = 10000.0;
+		mcconf->s_pid_ramp_erpms_s = 8000.0;
 	else
-		mcconf->s_pid_ramp_erpms_s = 25000.0;
+		mcconf->s_pid_ramp_erpms_s = 20000.0;
 
 	mc_interface_set_configuration(mcconf_old);
 	mc_interface_set_configuration(mcconf);
@@ -516,7 +530,7 @@ static THD_FUNCTION(speed_thread, arg) {
         if(is_pfc_ok()) {
             palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
-            if(is_sw_position() && is_momentary_position()) {
+            if(main_switch_adc_value() < 1.65 && main_switch_adc_value() > 1.5) {//if(is_sw_position() && is_momentary_position()) {
                    if(is_stop_state) {
             			timeout_reset();
                        	mc_interface_set_pid_speed(0.0);
@@ -524,13 +538,13 @@ static THD_FUNCTION(speed_thread, arg) {
                    	   }
                    }
 
-            if(!is_sw_position() && is_calibration_done) {
+           if(main_switch_adc_value() > 2.8 && is_calibration_done) {// if(!is_sw_position() && is_calibration_done) {
                 timeout_reset();
                 mc_interface_set_pid_speed(speed_setpoint);
                 is_stop_state = true;
             }
 
-            if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
+            if(main_switch_adc_value() < 0.2 && is_calibration_done) {//if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
             	if(!safety_calibration) {
             		if(!is_erpm_done) {
             			is_default_erpm = false;
@@ -605,7 +619,7 @@ static THD_FUNCTION(encoder_thread, arg) {
 	  }
 
 	  speed_setpoint = utils_map(calib, 0.0, 2.9, 800, 6400);
-	  speed_setpoint = round(speed_setpoint/400)*400;
+	  speed_setpoint = (round(speed_setpoint/400)*400);
 
 	  chThdSleepMilliseconds(10);
   }
