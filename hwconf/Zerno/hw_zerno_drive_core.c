@@ -387,8 +387,7 @@ void encoder_calibrate_offset(void) {
     encoder_total_value = ADC_VOLTS(ADC_IND_EXT); // get the knob position values
     main_switch_value = ADC_VOLTS(ADC_IND_EXT2); // get the switch position values
 
-
-	if(main_switch_value < 0.2) {//if(!is_momentary_position()) {
+	if(main_switch_value < 0.4 || !is_momentary_position()) { // Digital and analog detection for calibration mode.
 		encoder_min_value = encoder_total_value;
 		offset_value.as_float = encoder_min_value;
 		conf_general_store_eeprom_var_hw(&offset_value, EEPROM_ADDR_ENCODER_VALUE);
@@ -407,9 +406,9 @@ void set_erpm_ramp_response(void) {
 	*mcconf_old = *mcconf;
 
 	if(!is_default_erpm)
-		mcconf->s_pid_ramp_erpms_s = 8000.0;
+		mcconf->s_pid_ramp_erpms_s = 10000.0;
 	else
-		mcconf->s_pid_ramp_erpms_s = 20000.0;
+		mcconf->s_pid_ramp_erpms_s = 25000.0;
 
 	mc_interface_set_configuration(mcconf_old);
 	mc_interface_set_configuration(mcconf);
@@ -485,6 +484,8 @@ static void terminal_print_info(int argc, const char **argv) {
 	commands_printf("Calibration status: %d", check_cal.as_i32);
 
 	commands_printf("Switch values: %f", (double)(main_switch_adc_value())); // check the switch position values
+	(main_switch_adc_value() < 0.4)? commands_printf("Sw MOM: ON") : commands_printf("Sw MOM: OFF");
+	(main_switch_adc_value() > 1.2 && main_switch_adc_value() < 1.6)? commands_printf("Sw start: ON") : commands_printf("Sw start: OFF");
 	(is_pfc_ok())? commands_printf("PFC:OK") : commands_printf("PFC:OFF");
 
 	commands_printf("ADC: %f", (double)knob_read_1);
@@ -525,11 +526,11 @@ static THD_FUNCTION(speed_thread, arg) {
     chRegSetThreadName("speed_pid");
 
     for(;;) {
-
+   // TODO: Add a safety condition, just to avoid undesired behavior when main switch is disconnected.
         if(is_pfc_ok()) {
             palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
-            if(main_switch_adc_value() < 1.65 && main_switch_adc_value() > 1.5) {//if(is_sw_position() && is_momentary_position()) {
+            if(main_switch_adc_value() > 2.8) {//if(is_sw_position() && is_momentary_position()) {
                    if(is_stop_state) {
             			timeout_reset();
                        	mc_interface_set_pid_speed(0.0);
@@ -537,13 +538,13 @@ static THD_FUNCTION(speed_thread, arg) {
                    	   }
                    }
 
-           if(main_switch_adc_value() > 2.8 && is_calibration_done) {// if(!is_sw_position() && is_calibration_done) {
+           if(main_switch_adc_value() > 1.2 && main_switch_adc_value() < 1.6 &&  is_calibration_done) {// if(!is_sw_position() && is_calibration_done) {
                 timeout_reset();
                 mc_interface_set_pid_speed(speed_setpoint);
                 is_stop_state = true;
             }
 
-            if(main_switch_adc_value() < 0.2 && is_calibration_done) {//if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
+            if(main_switch_adc_value() < 0.4 && is_calibration_done) {//if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
             	if(!safety_calibration) {
             		if(!is_erpm_done) {
             			is_default_erpm = false;
@@ -559,6 +560,8 @@ static THD_FUNCTION(speed_thread, arg) {
             	    	while(!main_init_done()) { // here wait until the whole main configuration finish otherwise the encoder calibration won't work properly.
             	    			chThdSleepMilliseconds(10);
             	    		}
+            	    	is_default_erpm = true;
+            	    	set_erpm_ramp_response();
             	    	encoder_calibrate_offset();// added here, need to wait for the ADC readings to calibrate the offset
             	    	encoder_cal_detection();// perform the encoder_foc_calibration. Here will perform at first time.
             	    }
