@@ -387,7 +387,7 @@ void encoder_calibrate_offset(void) {
     encoder_total_value = ADC_VOLTS(ADC_IND_EXT); // get the knob position values
     main_switch_value = ADC_VOLTS(ADC_IND_EXT2); // get the switch position values
 
-	if(main_switch_value < 0.4 || !is_momentary_position()) { // Digital and analog detection for calibration mode.
+	if(!is_momentary_position()) { // Digital and analog detection for calibration mode.
 		encoder_min_value = encoder_total_value;
 		offset_value.as_float = encoder_min_value;
 		conf_general_store_eeprom_var_hw(&offset_value, EEPROM_ADDR_ENCODER_VALUE);
@@ -525,12 +525,16 @@ static THD_FUNCTION(speed_thread, arg) {
 
     chRegSetThreadName("speed_pid");
 
+    float sw_main = 0.0;
+
     for(;;) {
    // TODO: Add a safety condition, just to avoid undesired behavior when main switch is disconnected.
+    	sw_main = ADC_VOLTS(ADC_IND_EXT2);
+
         if(is_pfc_ok()) {
             palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
-            if(main_switch_adc_value() > 2.8) {//if(is_sw_position() && is_momentary_position()) {
+            if(sw_main > 2.8) {//if(is_sw_position() && is_momentary_position()) {
                    if(is_stop_state) {
             			timeout_reset();
                        	mc_interface_set_pid_speed(0.0);
@@ -538,13 +542,13 @@ static THD_FUNCTION(speed_thread, arg) {
                    	   }
                    }
 
-           if(main_switch_adc_value() > 1.2 && main_switch_adc_value() < 1.6 &&  is_calibration_done) {// if(!is_sw_position() && is_calibration_done) {
+           if(sw_main > 1.2 && sw_main < 1.6 &&  is_calibration_done) {// if(!is_sw_position() && is_calibration_done) {
                 timeout_reset();
                 mc_interface_set_pid_speed(speed_setpoint);
                 is_stop_state = true;
             }
 
-            if(main_switch_adc_value() < 0.4 && is_calibration_done) {//if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
+            if(sw_main < 0.4 && is_calibration_done) {//if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
             	if(!safety_calibration) {
             		if(!is_erpm_done) {
             			is_default_erpm = false;
@@ -610,7 +614,7 @@ static THD_FUNCTION(encoder_thread, arg) {
 				  aux = 0.0;
 			  }
 			  else
-				  aux = samples[i-1]- 0.05;
+				  aux = samples[i-1]- 0.08;
 		  }
 	  }
 
