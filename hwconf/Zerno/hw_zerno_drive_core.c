@@ -55,11 +55,12 @@ volatile float encoder_total_value;
 volatile float main_switch_value;
 volatile float speed_setpoint = 0.0;
 
+static void adc_read_callback(void);
 // variable for test purposes
 int is_calibration_done = 0 ;
 
 float get_pfc_temp(void);
-float knob_read_1;
+volatile float knob_read_1;
 float calib;
 
 void define_default_values(void);
@@ -184,6 +185,8 @@ void hw_init_gpio(void) {
 	//RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, ENABLE);
 	//DAC->CR |= DAC_CR_EN1;
 	//DAC->DHR12R1 = 2047;
+
+	mc_interface_set_pwm_callback (adc_read_callback);
 
 	define_default_values();
 
@@ -459,6 +462,16 @@ bool is_hw_fault(void) {
 	return (custom_fault);
 }
 
+static void adc_read_callback(void) {
+
+	float filter_knob = 0.0;
+
+	filter_knob = ADC_VOLTS(ADC_IND_EXT);
+
+	UTILS_LP_FAST(knob_read_1, filter_knob, 0.1);
+
+}
+
 float get_pfc_temp(void) {
 	static float temp_pfc_filtered = 0.0;
 
@@ -602,7 +615,7 @@ static THD_FUNCTION(encoder_thread, arg) {
 	  float aux= 0.0;
 
 	  for( int i = 0 ; i<15 ; i++) {
-		  knob_read_1 = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
+		  // knob_read_1 = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
 		  samples[i] = knob_read_1;
 		  chThdSleepMilliseconds(25);
 	  }
@@ -614,7 +627,7 @@ static THD_FUNCTION(encoder_thread, arg) {
 				  aux = 0.0;
 			  }
 			  else
-				  aux = samples[i-1]- 0.08;
+				  aux = samples[i-1]- 0.05;
 		  }
 	  }
 
