@@ -595,7 +595,7 @@ static THD_FUNCTION(speed_thread, arg) {
             }
         }
         else {
-            palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
+           // palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN); // if pfc is not ok, do nothing...
         }
         chThdSleepMilliseconds(100);
     }
