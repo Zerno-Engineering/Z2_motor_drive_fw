@@ -52,13 +52,15 @@ static bool encoder_thread_running = false;
 volatile float encoder_max_value = 3.2; // 14 bit max value
 volatile float encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
 volatile float encoder_total_value;
+volatile float main_switch_value;
 volatile float speed_setpoint = 0.0;
 
+static void adc_read_callback(void);
 // variable for test purposes
 int is_calibration_done = 0 ;
 
 float get_pfc_temp(void);
-float knob_read_1;
+volatile float knob_read_1;
 float calib;
 
 void define_default_values(void);
@@ -183,6 +185,8 @@ void hw_init_gpio(void) {
 	//RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, ENABLE);
 	//DAC->CR |= DAC_CR_EN1;
 	//DAC->DHR12R1 = 2047;
+
+	mc_interface_set_pwm_callback (adc_read_callback);
 
 	define_default_values();
 
@@ -355,6 +359,17 @@ bool is_pfc_ok(void) {
 	return (bool)palReadPad(PFC_STATUS_PORT, PFC_STATUS_PIN);
 }
 
+/* Enable adc readings for main switch */
+
+float main_switch_adc_value(void) {
+	static float main_switch = 0.0;
+	static float main_switch_filtered = 0.0;
+
+	main_switch = ADC_VOLTS(ADC_IND_EXT2);
+	UTILS_LP_FAST(main_switch_filtered, main_switch, 0.1);
+
+	return main_switch_filtered;
+}
 /* Load the stored values during start-up
  *
  */
@@ -372,9 +387,10 @@ void encoder_calibrate_offset(void) {
 
 	eeprom_var offset_value, calibration_check;
 
-    encoder_total_value = ADC_VOLTS(ADC_IND_EXT);
+    encoder_total_value = ADC_VOLTS(ADC_IND_EXT); // get the knob position values
+    main_switch_value = ADC_VOLTS(ADC_IND_EXT2); // get the switch position values
 
-	if(!is_momentary_position()) {
+	if(!is_momentary_position()) { // Digital and analog detection for calibration mode.
 		encoder_min_value = encoder_total_value;
 		offset_value.as_float = encoder_min_value;
 		conf_general_store_eeprom_var_hw(&offset_value, EEPROM_ADDR_ENCODER_VALUE);
@@ -446,6 +462,16 @@ bool is_hw_fault(void) {
 	return (custom_fault);
 }
 
+static void adc_read_callback(void) {
+
+	float filter_knob = 0.0;
+
+	filter_knob = ADC_VOLTS(ADC_IND_EXT);
+
+	UTILS_LP_FAST(knob_read_1, filter_knob, 0.1);
+
+}
+
 float get_pfc_temp(void) {
 	static float temp_pfc_filtered = 0.0;
 
@@ -470,8 +496,9 @@ static void terminal_print_info(int argc, const char **argv) {
 	conf_general_read_eeprom_var_hw(&check_cal, EEPROM_ADDR_CALIBRATION_CHECK);
 	commands_printf("Calibration status: %d", check_cal.as_i32);
 
-	(is_momentary_position())? commands_printf("Momentary_pos:OFF") : commands_printf("Momentary_pos:ON");
-	(is_sw_position())? commands_printf("sw_pos:OFF") : commands_printf("sw_pos:ON");
+	commands_printf("Switch values: %f", (double)(main_switch_adc_value())); // check the switch position values
+	(main_switch_adc_value() < 0.4)? commands_printf("Sw MOM: ON") : commands_printf("Sw MOM: OFF");
+	(main_switch_adc_value() > 1.2 && main_switch_adc_value() < 1.6)? commands_printf("Sw start: ON") : commands_printf("Sw start: OFF");
 	(is_pfc_ok())? commands_printf("PFC:OK") : commands_printf("PFC:OFF");
 
 	commands_printf("ADC: %f", (double)knob_read_1);
@@ -511,12 +538,16 @@ static THD_FUNCTION(speed_thread, arg) {
 
     chRegSetThreadName("speed_pid");
 
+    float sw_main = 0.0;
+
     for(;;) {
+   // TODO: Add a safety condition, just to avoid undesired behavior when main switch is disconnected.
+    	sw_main = ADC_VOLTS(ADC_IND_EXT2);
 
         if(is_pfc_ok()) {
             palSetPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
 
-            if(is_sw_position() && is_momentary_position()) {
+            if(sw_main > 2.8) {//if(is_sw_position() && is_momentary_position()) {
                    if(is_stop_state) {
             			timeout_reset();
                        	mc_interface_set_pid_speed(0.0);
@@ -524,13 +555,13 @@ static THD_FUNCTION(speed_thread, arg) {
                    	   }
                    }
 
-            if(!is_sw_position() && is_calibration_done) {
+           if(sw_main > 1.2 && sw_main < 1.6 &&  is_calibration_done) {// if(!is_sw_position() && is_calibration_done) {
                 timeout_reset();
                 mc_interface_set_pid_speed(speed_setpoint);
                 is_stop_state = true;
             }
 
-            if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
+            if(sw_main < 0.4 && is_calibration_done) {//if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
             	if(!safety_calibration) {
             		if(!is_erpm_done) {
             			is_default_erpm = false;
@@ -564,7 +595,7 @@ static THD_FUNCTION(speed_thread, arg) {
             }
         }
         else {
-            palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN);
+           // palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN); // if pfc is not ok, do nothing...
         }
         chThdSleepMilliseconds(100);
     }
@@ -584,7 +615,7 @@ static THD_FUNCTION(encoder_thread, arg) {
 	  float aux= 0.0;
 
 	  for( int i = 0 ; i<15 ; i++) {
-		  knob_read_1 = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
+		  // knob_read_1 = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
 		  samples[i] = knob_read_1;
 		  chThdSleepMilliseconds(25);
 	  }
@@ -607,7 +638,7 @@ static THD_FUNCTION(encoder_thread, arg) {
 	  }
 
 	  speed_setpoint = utils_map(calib, 0.0, 2.9, 800, 6400);
-	  speed_setpoint = round(speed_setpoint/400)*400;
+	  speed_setpoint = (round(speed_setpoint/400)*400);
 
 	  chThdSleepMilliseconds(10);
   }
