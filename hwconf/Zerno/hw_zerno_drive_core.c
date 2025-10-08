@@ -54,13 +54,13 @@ volatile float encoder_min_value = 0.0; //not sure if will be 0, but need to be 
 volatile float encoder_total_value;
 volatile float main_switch_value;
 volatile float speed_setpoint = 0.0;
+volatile float Knob_read;
 
 static void adc_read_callback(void);
 // variable for test purposes
 int is_calibration_done = 0 ;
 
 float get_pfc_temp(void);
-volatile float knob_read_1;
 float calib;
 
 void define_default_values(void);
@@ -468,7 +468,7 @@ static void adc_read_callback(void) {
 
 	filter_knob = ADC_VOLTS(ADC_IND_EXT);
 
-	UTILS_LP_FAST(knob_read_1, filter_knob, 0.1);
+	UTILS_LP_FAST(Knob_read, filter_knob, 0.1);
 
 }
 
@@ -496,12 +496,9 @@ static void terminal_print_info(int argc, const char **argv) {
 	conf_general_read_eeprom_var_hw(&check_cal, EEPROM_ADDR_CALIBRATION_CHECK);
 	commands_printf("Calibration status: %d", check_cal.as_i32);
 
-	commands_printf("Switch values: %f", (double)(main_switch_adc_value())); // check the switch position values
-	(main_switch_adc_value() < 0.4)? commands_printf("Sw MOM: ON") : commands_printf("Sw MOM: OFF");
-	(main_switch_adc_value() > 1.2 && main_switch_adc_value() < 1.6)? commands_printf("Sw start: ON") : commands_printf("Sw start: OFF");
 	(is_pfc_ok())? commands_printf("PFC:OK") : commands_printf("PFC:OFF");
 
-	commands_printf("ADC: %f", (double)knob_read_1);
+	commands_printf("ADC: %f", (double)Knob_read);
 	commands_printf("ADC_cal: %f", (double)calib);
 	commands_printf("Encoder min: %f", (double)encoder_min_value);
 	commands_printf("speed: %f", (double)speed_setpoint);
@@ -615,8 +612,8 @@ static THD_FUNCTION(encoder_thread, arg) {
 	  float aux= 0.0;
 
 	  for( int i = 0 ; i<15 ; i++) {
-		  // knob_read_1 = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
-		  samples[i] = knob_read_1;
+		  // Knob_read = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
+		  samples[i] = Knob_read;
 		  chThdSleepMilliseconds(25);
 	  }
 
