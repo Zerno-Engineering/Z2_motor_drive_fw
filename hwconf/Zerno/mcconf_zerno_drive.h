@@ -690,12 +690,12 @@
 
 // Speed PID Kp
 #ifndef MCCONF_S_PID_KP
-#define MCCONF_S_PID_KP 0.065
+#define MCCONF_S_PID_KP 0.055
 #endif
 
 // Speed PID Ki
 #ifndef MCCONF_S_PID_KI
-#define MCCONF_S_PID_KI 0.004
+#define MCCONF_S_PID_KI 0.0005
 #endif
 
 // Speed PID Kd
@@ -705,7 +705,7 @@
 
 // Speed PID Kd Filter
 #ifndef MCCONF_S_PID_KD_FILTER
-#define MCCONF_S_PID_KD_FILTER 0.02
+#define MCCONF_S_PID_KD_FILTER 0.4
 #endif
 
 // Minimum ERPM
