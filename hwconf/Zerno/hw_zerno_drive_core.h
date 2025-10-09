@@ -268,7 +268,7 @@
 #define HW_DEAD_TIME_NSEC		250.0
 
 // Setting limits
-#define HW_LIM_CURRENT			-6.0, 6.0
+#define HW_LIM_CURRENT			-8.0, 8.0
 #define HW_LIM_CURRENT_IN		-6.0, 6.0
 #define HW_LIM_CURRENT_ABS		0.0, 10.0
 #define HW_LIM_VIN				100.0, 450.0

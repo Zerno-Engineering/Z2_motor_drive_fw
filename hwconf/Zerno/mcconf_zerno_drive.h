@@ -155,12 +155,12 @@
 
 // Maximum Wattage
 #ifndef MCCONF_L_WATT_MAX
-#define MCCONF_L_WATT_MAX 1.5e+06
+#define MCCONF_L_WATT_MAX 400.0
 #endif
 
 // Maximum Braking Wattage
 #ifndef MCCONF_L_WATT_MIN
-#define MCCONF_L_WATT_MIN -1.5e+06
+#define MCCONF_L_WATT_MIN -400.0
 #endif
 
 // Max Current Scale
