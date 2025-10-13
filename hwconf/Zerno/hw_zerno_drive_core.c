@@ -38,7 +38,6 @@
 
 #define	EEPROM_ADDR_ENCODER_VALUE	2
 #define EEPROM_ADDR_CALIBRATION_CHECK	6
-#define MAGNET_TIMEOUT_MS 1000
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
@@ -594,6 +593,7 @@ static THD_FUNCTION(speed_thread, arg) {
         else {
            // palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN); // if pfc is not ok, do nothing...
         }
+
         chThdSleepMilliseconds(100);
     }
 }
