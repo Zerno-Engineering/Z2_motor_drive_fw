@@ -95,12 +95,12 @@
 
 // Battery Voltage Cutoff Start
 #ifndef MCCONF_L_BATTERY_CUT_START
-#define MCCONF_L_BATTERY_CUT_START 10
+#define MCCONF_L_BATTERY_CUT_START 380
 #endif
 
 // Battery Voltage Cutoff End
 #ifndef MCCONF_L_BATTERY_CUT_END
-#define MCCONF_L_BATTERY_CUT_END 8
+#define MCCONF_L_BATTERY_CUT_END 370
 #endif
 
 // Battery Voltage Regen Cutoff Start
