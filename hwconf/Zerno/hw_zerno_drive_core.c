@@ -75,6 +75,8 @@ bool is_erpm_done = false;
 bool is_default_erpm = true;
 bool is_encoder_done = false;
 bool is_stop_state = false ;
+bool is_pid_kd_change_up = false;
+bool is_pid_kd_change_down = false;
 
 // Variables
 static volatile bool i2c_running = false;
@@ -421,6 +423,27 @@ void set_erpm_ramp_response(void) {
 	is_erpm_done = true;
 }
 
+void set_pid_constant(void) {
+
+	mc_configuration *mcconf = mempools_alloc_mcconf();
+	*mcconf = *mc_interface_get_configuration();
+	mc_configuration *mcconf_old = mempools_alloc_mcconf();
+	*mcconf_old = *mcconf;
+
+	if(speed_setpoint < 3600) {
+		mcconf-> s_pid_kd = 0.000400;
+	}
+	else {
+		mcconf-> s_pid_kd = 0.000020;
+	}
+
+	mc_interface_set_configuration(mcconf_old);
+	mc_interface_set_configuration(mcconf);
+
+	mempools_free_mcconf(mcconf);
+	mempools_free_mcconf(mcconf_old);
+}
+
 void encoder_cal_detection(void) {
 
 	mc_configuration *mcconf = mempools_alloc_mcconf();
@@ -611,6 +634,7 @@ static THD_FUNCTION(encoder_thread, arg) {
 	  float diff;
 	  float aux= 0.0;
 
+
 	  for( int i = 0 ; i<15 ; i++) {
 		  // Knob_read = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
 		  samples[i] = Knob_read;
@@ -636,6 +660,21 @@ static THD_FUNCTION(encoder_thread, arg) {
 
 	  speed_setpoint = utils_map(calib, 0.0, 2.9, 800, 6400);
 	  speed_setpoint = (round(speed_setpoint/400)*400);
+
+	  if(speed_setpoint >= 3600) {
+		  if(!is_pid_kd_change_up) {
+			  set_pid_constant();
+			  is_pid_kd_change_up = true;
+			  is_pid_kd_change_down = false;
+		  }
+	  }
+	  if(speed_setpoint < 3600) {
+		  if(!is_pid_kd_change_down) {
+			  set_pid_constant();
+			  is_pid_kd_change_down = true;
+			  is_pid_kd_change_up = false;
+		  }
+	  }
 
 	  chThdSleepMilliseconds(10);
   }
