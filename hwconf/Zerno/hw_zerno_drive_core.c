@@ -412,7 +412,7 @@ void set_erpm_ramp_response(void) {
 	if(!is_default_erpm)
 		mcconf->s_pid_ramp_erpms_s = 10000.0;
 	else
-		mcconf->s_pid_ramp_erpms_s = 25000.0;
+		mcconf->s_pid_ramp_erpms_s = 20000.0;
 
 	mc_interface_set_configuration(mcconf_old);
 	mc_interface_set_configuration(mcconf);

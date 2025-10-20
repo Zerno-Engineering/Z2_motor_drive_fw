@@ -690,12 +690,12 @@
 
 // Speed PID Kp
 #ifndef MCCONF_S_PID_KP
-#define MCCONF_S_PID_KP 0.055
+#define MCCONF_S_PID_KP 0.025
 #endif
 
 // Speed PID Ki
 #ifndef MCCONF_S_PID_KI
-#define MCCONF_S_PID_KI 0.0005
+#define MCCONF_S_PID_KI 0.02
 #endif
 
 // Speed PID Kd
@@ -720,7 +720,7 @@
 
 // Ramp eRPMs per second
 #ifndef MCCONF_S_PID_RAMP_ERPMS_S
-#define MCCONF_S_PID_RAMP_ERPMS_S 25000
+#define MCCONF_S_PID_RAMP_ERPMS_S 20000
 #endif
 
 // Speed Source
