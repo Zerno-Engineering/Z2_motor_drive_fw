@@ -77,7 +77,7 @@ bool is_encoder_done = false;
 bool is_stop_state = false ;
 bool is_pid_kd_change_up = false;
 bool is_pid_kd_change_down = false;
-
+bool is_momentary_position_status = false;
 // Variables
 static volatile bool i2c_running = false;
 
@@ -571,6 +571,7 @@ static THD_FUNCTION(speed_thread, arg) {
             			timeout_reset();
                        	mc_interface_set_pid_speed(0.0);
                        	is_stop_state = false;
+                       	is_momentary_position_status = false;
                    	   }
                    }
 
@@ -587,6 +588,7 @@ static THD_FUNCTION(speed_thread, arg) {
             			set_erpm_ramp_response();
             		}
             		speed_setpoint = 8000;
+            		is_momentary_position_status = true;
             		timeout_reset();
             		mc_interface_set_pid_speed(speed_setpoint);
             		is_stop_state = true;
@@ -634,32 +636,33 @@ static THD_FUNCTION(encoder_thread, arg) {
 	  float diff;
 	  float aux= 0.0;
 
+	  if(!is_momentary_position_status) {
+		  for( int i = 0 ; i<15 ; i++) {
+			  // Knob_read = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
+			  samples[i] = Knob_read;
+			  chThdSleepMilliseconds(25);
+		  }
 
-	  for( int i = 0 ; i<15 ; i++) {
-		  // Knob_read = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
-		  samples[i] = Knob_read;
-		  chThdSleepMilliseconds(25);
-	  }
-
-	  for (int i=0; i<15; i++) {
-		  if(i!=0) {
-			  diff = fabs(samples[i] - samples[i-1]);
-			  if(diff > 0.2) {
-				  aux = 0.0;
-			  }
+		  for (int i=0; i<15; i++) {
+			  if(i!=0) {
+				  diff = fabs(samples[i] - samples[i-1]);
+				  if(diff > 0.2) {
+					  aux = 0.0;
+				  }
 			  else
 				  aux = samples[i-1]- 0.05;
+			  }
 		  }
+
+		  calib = (encoder_min_value - aux); // enable this to use the encoder calibration
+
+		  if(calib < 0) {
+			  calib += 3.22;
+		  }
+
+		  speed_setpoint = utils_map(calib, 0.0, 2.9, 800, 6400);
+		  speed_setpoint = (round(speed_setpoint/400)*400);
 	  }
-
-	  calib = (encoder_min_value - aux); // enable this to use the encoder calibration
-
-	  if(calib < 0) {
-		  calib += 3.22;
-	  }
-
-	  speed_setpoint = utils_map(calib, 0.0, 2.9, 800, 6400);
-	  speed_setpoint = (round(speed_setpoint/400)*400);
 
 	  if(speed_setpoint >= 3600) {
 		  if(!is_pid_kd_change_up) {
