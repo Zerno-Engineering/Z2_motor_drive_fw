@@ -38,6 +38,9 @@
 
 #define	EEPROM_ADDR_ENCODER_VALUE	2
 #define EEPROM_ADDR_CALIBRATION_CHECK	6
+#define CURRENT_MOTOR_TIMEOUT 2000
+#define CUTOFF_CURRENT 3.0 // current for a stalled motor
+#define GRIND_ATTEMPS 3
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
@@ -48,7 +51,7 @@ static THD_WORKING_AREA(encoder_thread_wa, 1024);
 static bool speed_thread_running = false;
 static bool encoder_thread_running = false;
 
-volatile float encoder_max_value = 3.2; // 14 bit max value
+volatile float encoder_max_value = 3.2;
 volatile float encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
 volatile float encoder_total_value;
 volatile float main_switch_value;
@@ -78,6 +81,7 @@ bool is_stop_state = false ;
 bool is_pid_kd_change_up = false;
 bool is_pid_kd_change_down = false;
 bool is_momentary_position_status = false;
+bool is_motor_stalled_fault = false;
 // Variables
 static volatile bool i2c_running = false;
 
@@ -558,6 +562,8 @@ static THD_FUNCTION(speed_thread, arg) {
     chRegSetThreadName("speed_pid");
 
     float sw_main = 0.0;
+    static systime_t overload_start = 0;
+    static int grind_attemp = 0;
 
     for(;;) {
    // TODO: Add a safety condition, just to avoid undesired behavior when main switch is disconnected.
@@ -572,10 +578,11 @@ static THD_FUNCTION(speed_thread, arg) {
                        	mc_interface_set_pid_speed(0.0);
                        	is_stop_state = false;
                        	is_momentary_position_status = false;
+                       	is_motor_stalled_fault = false;
                    	   }
                    }
 
-           if(sw_main > 1.2 && sw_main < 1.6 &&  is_calibration_done) {// if(!is_sw_position() && is_calibration_done) {
+           if(sw_main > 1.2 && sw_main < 1.6 &&  is_calibration_done && !is_motor_stalled_fault) {// if(!is_sw_position() && is_calibration_done) {
                 timeout_reset();
                 mc_interface_set_pid_speed(speed_setpoint);
                 is_stop_state = true;
@@ -613,6 +620,28 @@ static THD_FUNCTION(speed_thread, arg) {
             		is_default_erpm = true;
             		set_erpm_ramp_response();
             	}
+            }
+
+            if (mc_interface_get_tot_current() >= CUTOFF_CURRENT) { // perform a overload protection. Set at 4A just to test the algorithm
+            	if (overload_start == 0) {
+            		overload_start = chVTGetSystemTime();
+            	}
+            	else {
+            		if (chVTTimeElapsedSinceX(overload_start) > MS2ST(CURRENT_MOTOR_TIMEOUT)) {
+            			timeout_reset();
+            			mc_interface_set_pid_speed(0.0);
+            			grind_attemp++;
+            			if(grind_attemp == GRIND_ATTEMPS) {
+            				is_motor_stalled_fault = true;
+            				grind_attemp = 0;
+            			}
+            			chThdSleepMilliseconds(2000); // wait for seconds and start again.
+            			overload_start = 0;
+            		}
+            	}
+            }
+            else {
+            	overload_start = 0;
             }
         }
         else {
