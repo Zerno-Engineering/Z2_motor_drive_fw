@@ -39,7 +39,9 @@
 #define	EEPROM_ADDR_ENCODER_VALUE	2
 #define EEPROM_ADDR_CALIBRATION_CHECK	6
 #define CURRENT_MOTOR_TIMEOUT 2000
+#define GRIND_TIMEOUT 600 // value in seconds
 #define CUTOFF_CURRENT 3.0 // current for a stalled motor
+#define NO_GRIND_CURRENT 0.6
 #define GRIND_ATTEMPS 3
 
 static THD_FUNCTION(speed_thread, arg);
@@ -82,6 +84,7 @@ bool is_pid_kd_change_up = false;
 bool is_pid_kd_change_down = false;
 bool is_momentary_position_status = false;
 bool is_motor_stalled_fault = false;
+bool is_motor_grinding_enable = true;
 // Variables
 static volatile bool i2c_running = false;
 
@@ -563,6 +566,7 @@ static THD_FUNCTION(speed_thread, arg) {
 
     float sw_main = 0.0;
     static systime_t overload_start = 0;
+    static systime_t grind_start = 0;
     static int grind_attemp = 0;
 
     for(;;) {
@@ -579,13 +583,31 @@ static THD_FUNCTION(speed_thread, arg) {
                        	is_stop_state = false;
                        	is_momentary_position_status = false;
                        	is_motor_stalled_fault = false;
+                       	is_motor_grinding_enable = true;
                    	   }
                    }
 
-           if(sw_main > 1.2 && sw_main < 1.6 &&  is_calibration_done && !is_motor_stalled_fault) {// if(!is_sw_position() && is_calibration_done) {
-                timeout_reset();
-                mc_interface_set_pid_speed(speed_setpoint);
-                is_stop_state = true;
+           if(sw_main > 1.2 && sw_main < 1.6 &&  is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable) {// if(!is_sw_position() && is_calibration_done) {
+        	   timeout_reset();
+        	   mc_interface_set_pid_speed(speed_setpoint);
+
+        	   if(mc_interface_get_tot_current() < NO_GRIND_CURRENT) {
+        		   if(grind_start == 0) {
+        			   grind_start = chVTGetSystemTime();
+        		   }
+        		   else {
+        			   if (chVTTimeElapsedSinceX(grind_start) > S2ST(GRIND_TIMEOUT)) {
+        				   timeout_reset();
+        				   mc_interface_set_pid_speed(0.0);
+        				   is_motor_grinding_enable = false;
+        				   grind_start = 0;
+        			   }
+        		   }
+        	   }
+        	   else {
+        		   grind_start = 0;
+        	   }
+        	   is_stop_state = true;
             }
 
             if(sw_main < 0.4 && is_calibration_done) {//if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
