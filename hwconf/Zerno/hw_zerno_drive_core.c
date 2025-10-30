@@ -684,7 +684,7 @@ static THD_FUNCTION(encoder_thread, arg) {
     static int last_index = -1;
     const float min_cal = 0.08;
     const float max_cal = 2.9;
-    const float hyst = 0.20;
+    const float hyst = 0.4;
     float scaled;
     float lower;
     float upper;
