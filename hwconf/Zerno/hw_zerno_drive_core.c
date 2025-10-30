@@ -42,7 +42,7 @@
 #define GRIND_TIMEOUT 600 // value in seconds
 #define CUTOFF_CURRENT 3.0 // current for a stalled motor
 #define NO_GRIND_CURRENT 0.6
-#define GRIND_ATTEMPS 3
+#define GRIND_ATTEMPS 1
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
