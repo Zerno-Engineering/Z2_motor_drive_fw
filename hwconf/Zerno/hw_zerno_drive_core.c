@@ -681,6 +681,15 @@ static THD_FUNCTION(encoder_thread, arg) {
 
     chThdSleepMilliseconds(1000);
 
+    static int last_index = -1;
+    const float min_cal = 0.08;
+    const float max_cal = 2.9;
+    const float hyst = 0.20;
+    float scaled;
+    float lower;
+    float upper;
+    int new_index;
+
   for(;;) {
 
 	  float samples[15];
@@ -711,8 +720,40 @@ static THD_FUNCTION(encoder_thread, arg) {
 			  calib += 3.22;
 		  }
 
-		  speed_setpoint = utils_map(calib, 0.0, 2.9, 800, 6400);
-		  speed_setpoint = (round(speed_setpoint/400)*400);
+          //The knob has 28 steps so here the adc value will be scaled to 0..14 steps
+		  scaled = utils_map(calib, min_cal, max_cal, 0.0, 14.0);
+
+		  // Clamp the scaled values to be used as index
+		  if (scaled < 0.0) scaled = 0.0;
+		  if (scaled > 14.0) scaled = 14.0;
+
+		  if (last_index < 0) {
+			  last_index = (int)floorf(scaled + 0.5);
+			  //last_index = (int)roundf(scaled + 0.5);
+		  }
+
+		  //Add a hysteresis just to avoid a jumpy index change
+		  lower = (float)last_index - 0.5 - hyst;
+		  upper = (float)last_index + 0.5 + hyst;
+
+		  new_index = last_index;
+
+		  if (scaled < lower || scaled > upper) {
+			  new_index = (int)floorf(scaled + 0.5);
+
+			  //clamp the scaled index..
+			  if (new_index < 0) new_index = 0;
+			  if (new_index > 14) new_index = 14;
+			  last_index = new_index;
+		  }
+
+		  // Convert index to speed (800 + index*400). So for each index value corresponds an erpm value
+		  speed_setpoint = 800.0 + (float)new_index * 400.0;
+
+		  //speed_setpoint = utils_map(calib, min_cal, max_cal, 800, 6400);  // 2.9
+		  //speed_setpoint = (round(speed_setpoint/400)*400);
+
+		  //calib_old = calib;
 	  }
 
 	  if(speed_setpoint >= 3600) {
