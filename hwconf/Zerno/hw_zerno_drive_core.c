@@ -584,6 +584,7 @@ static THD_FUNCTION(speed_thread, arg) {
                        	is_momentary_position_status = false;
                        	is_motor_stalled_fault = false;
                        	is_motor_grinding_enable = true;
+                       	grind_start = 0;
                    	   }
                    }
 
