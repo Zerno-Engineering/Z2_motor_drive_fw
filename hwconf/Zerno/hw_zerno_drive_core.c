@@ -683,7 +683,7 @@ static THD_FUNCTION(encoder_thread, arg) {
     chThdSleepMilliseconds(1000);
 
     static int last_index = -1;
-    const float min_cal = 0.08;
+    const float min_cal = 0.07;
     const float max_cal = 2.9;
     const float hyst = 0.4;
     float scaled;
