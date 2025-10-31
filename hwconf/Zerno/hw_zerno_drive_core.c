@@ -38,7 +38,7 @@
 
 #define	EEPROM_ADDR_ENCODER_VALUE	2
 #define EEPROM_ADDR_CALIBRATION_CHECK	6
-#define CURRENT_MOTOR_TIMEOUT 2000
+#define CURRENT_MOTOR_TIMEOUT 1000
 #define GRIND_TIMEOUT 600 // value in seconds
 #define CUTOFF_CURRENT 3.0 // current for a stalled motor
 #define NO_GRIND_CURRENT 0.6
