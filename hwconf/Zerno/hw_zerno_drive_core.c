@@ -497,7 +497,7 @@ static void adc_read_callback(void) {
 
 	filter_knob = ADC_VOLTS(ADC_IND_EXT);
 
-	UTILS_LP_FAST(Knob_read, filter_knob, 0.1);
+	UTILS_LP_FAST(Knob_read, filter_knob, 0.01);
 
 }
 
