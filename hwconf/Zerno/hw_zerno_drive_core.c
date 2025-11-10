@@ -66,6 +66,11 @@ int is_calibration_done = 0 ;
 
 float get_pfc_temp(void);
 float calib;
+float indexes;
+float ind;
+float min_cal;
+float steps;
+float lin_approx;
 
 void define_default_values(void);
 void encoder_calibrate_offset(void);
@@ -85,6 +90,7 @@ bool is_pid_kd_change_down = false;
 bool is_momentary_position_status = false;
 bool is_motor_stalled_fault = false;
 bool is_motor_grinding_enable = true;
+bool get_min_cal = false;
 // Variables
 static volatile bool i2c_running = false;
 
@@ -530,6 +536,9 @@ static void terminal_print_info(int argc, const char **argv) {
 	commands_printf("ADC: %f", (double)Knob_read);
 	commands_printf("ADC_cal: %f", (double)calib);
 	commands_printf("Encoder min: %f", (double)encoder_min_value);
+	commands_printf("min cal: %f", (double)min_cal);
+	commands_printf("linear: %f", (double)lin_approx);
+	commands_printf("step: %f", (double)steps);
 	commands_printf("speed: %f", (double)speed_setpoint);
 }
 
@@ -632,6 +641,7 @@ static THD_FUNCTION(speed_thread, arg) {
             	    	set_erpm_ramp_response();
             	    	encoder_calibrate_offset();// added here, need to wait for the ADC readings to calibrate the offset
             	    	encoder_cal_detection();// perform the encoder_foc_calibration. Here will perform at first time.
+            	    	get_min_cal = true;
             	    }
             	}
             }
@@ -682,14 +692,8 @@ static THD_FUNCTION(encoder_thread, arg) {
 
     chThdSleepMilliseconds(1000);
 
-    static int last_index = -1;
-    const float min_cal = 0.07;
+
     const float max_cal = 2.9;
-    const float hyst = 0.4;
-    float scaled;
-    float lower;
-    float upper;
-    int new_index;
 
   for(;;) {
 
@@ -701,7 +705,7 @@ static THD_FUNCTION(encoder_thread, arg) {
 		  for( int i = 0 ; i<15 ; i++) {
 			  // Knob_read = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
 			  samples[i] = Knob_read;
-			  chThdSleepMilliseconds(25);
+			  chThdSleepMilliseconds(10);
 		  }
 
 		  for (int i=0; i<15; i++) {
@@ -721,40 +725,15 @@ static THD_FUNCTION(encoder_thread, arg) {
 			  calib += 3.22;
 		  }
 
-          //The knob has 28 steps so here the adc value will be scaled to 0..14 steps
-		  scaled = utils_map(calib, min_cal, max_cal, 0.0, 14.0);
-
-		  // Clamp the scaled values to be used as index
-		  if (scaled < 0.0) scaled = 0.0;
-		  if (scaled > 14.0) scaled = 14.0;
-
-		  if (last_index < 0) {
-			  last_index = (int)floorf(scaled + 0.5);
-			  //last_index = (int)roundf(scaled + 0.5);
+		  if(get_min_cal){ // should add here the condition when the calibration is done
+			  min_cal = calib; // get the minimum initial value
+			  steps = (max_cal - min_cal)/27; // get the step adc value
+			  get_min_cal = false;
 		  }
 
-		  //Add a hysteresis just to avoid a jumpy index change
-		  lower = (float)last_index - 0.5 - hyst;
-		  upper = (float)last_index + 0.5 + hyst;
+		  lin_approx = roundf(((calib - min_cal)/steps));
 
-		  new_index = last_index;
-
-		  if (scaled < lower || scaled > upper) {
-			  new_index = (int)floorf(scaled + 0.5);
-
-			  //clamp the scaled index..
-			  if (new_index < 0) new_index = 0;
-			  if (new_index > 14) new_index = 14;
-			  last_index = new_index;
-		  }
-
-		  // Convert index to speed (800 + index*400). So for each index value corresponds an erpm value
-		  speed_setpoint = 800.0 + (float)new_index * 400.0;
-
-		  //speed_setpoint = utils_map(calib, min_cal, max_cal, 800, 6400);  // 2.9
-		  //speed_setpoint = (round(speed_setpoint/400)*400);
-
-		  //calib_old = calib;
+		  speed_setpoint = 800.0 + lin_approx * 200.0;
 	  }
 
 	  if(speed_setpoint >= 3600) {
