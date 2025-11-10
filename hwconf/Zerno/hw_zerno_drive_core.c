@@ -587,13 +587,12 @@ static THD_FUNCTION(speed_thread, arg) {
 
             if(sw_main > 2.8) {//if(is_sw_position() && is_momentary_position()) {
                    if(is_stop_state) {
-            			timeout_reset();
-                       	mc_interface_set_pid_speed(0.0);
-                       	is_stop_state = false;
-                       	is_momentary_position_status = false;
-                       	is_motor_stalled_fault = false;
-                       	is_motor_grinding_enable = true;
-                       	grind_start = 0;
+                	   mc_interface_release_motor();
+                	   is_stop_state = false;
+                	   is_momentary_position_status = false;
+                	   is_motor_stalled_fault = false;
+                	   is_motor_grinding_enable = true;
+                	   grind_start = 0;
                    	   }
                    }
 
