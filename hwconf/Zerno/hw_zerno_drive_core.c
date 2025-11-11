@@ -38,6 +38,8 @@
 
 #define	EEPROM_ADDR_ENCODER_VALUE	2
 #define EEPROM_ADDR_CALIBRATION_CHECK	6
+#define EEPROM_ADDR_MIN_CALIBRATED_VALUE 8
+#define EEPROM_ADDR_STEPS_VALUE 10
 #define CURRENT_MOTOR_TIMEOUT 1000
 #define GRIND_TIMEOUT 600 // value in seconds
 #define CUTOFF_CURRENT 3.0 // current for a stalled motor
@@ -59,6 +61,8 @@ volatile float encoder_total_value;
 volatile float main_switch_value;
 volatile float speed_setpoint = 0.0;
 volatile float Knob_read;
+volatile float min_cal;
+volatile float steps;
 
 static void adc_read_callback(void);
 // variable for test purposes
@@ -68,8 +72,6 @@ float get_pfc_temp(void);
 float calib;
 float indexes;
 float ind;
-float min_cal;
-float steps;
 float lin_approx;
 
 void define_default_values(void);
@@ -388,13 +390,20 @@ float main_switch_adc_value(void) {
  *
  */
 void define_default_values(void) {
-	eeprom_var default_offset, default_calibration;
+	eeprom_var default_offset, default_calibration, min_cal_stored, step_stored;
 
 	conf_general_read_eeprom_var_hw(&default_offset, EEPROM_ADDR_ENCODER_VALUE);
 	encoder_min_value = default_offset.as_float;
 
 	conf_general_read_eeprom_var_hw(&default_calibration, EEPROM_ADDR_CALIBRATION_CHECK);
 	is_calibration_done = default_calibration.as_i32;
+
+	conf_general_read_eeprom_var_hw(&min_cal_stored, EEPROM_ADDR_MIN_CALIBRATED_VALUE);
+	min_cal = min_cal_stored.as_float;
+
+	conf_general_read_eeprom_var_hw(&step_stored, EEPROM_ADDR_STEPS_VALUE);
+	steps = step_stored.as_float;
+
 }
 
 void encoder_calibrate_offset(void) {
@@ -691,6 +700,8 @@ static THD_FUNCTION(encoder_thread, arg) {
 
     chThdSleepMilliseconds(1000);
 
+    eeprom_var minimum_cal, steps_cal;
+
 
     const float max_cal = 2.9;
 
@@ -724,9 +735,13 @@ static THD_FUNCTION(encoder_thread, arg) {
 			  calib += 3.22;
 		  }
 
-		  if(get_min_cal){ // should add here the condition when the calibration is done
-			  min_cal = calib; // get the minimum initial value
-			  steps = (max_cal - min_cal)/27; // get the step adc value
+		  if(get_min_cal) {
+			  min_cal = calib;
+			  steps = (max_cal - min_cal)/27;
+			  minimum_cal.as_float = min_cal;
+			  conf_general_store_eeprom_var_hw(&minimum_cal, EEPROM_ADDR_MIN_CALIBRATED_VALUE);
+			  steps_cal.as_float = steps;
+			  conf_general_store_eeprom_var_hw(&steps_cal, EEPROM_ADDR_STEPS_VALUE);
 			  get_min_cal = false;
 		  }
 
