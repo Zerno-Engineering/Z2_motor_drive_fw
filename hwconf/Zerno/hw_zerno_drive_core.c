@@ -615,8 +615,7 @@ static THD_FUNCTION(speed_thread, arg) {
         		   }
         		   else {
         			   if (chVTTimeElapsedSinceX(grind_start) > S2ST(GRIND_TIMEOUT_SEC)) {
-        				   timeout_reset();
-        				   mc_interface_set_pid_speed(0.0); // need to use release here
+        				   mc_interface_release_motor();
         				   is_motor_grinding_enable = false;
         				   grind_start = 0;
         			   }
@@ -669,8 +668,7 @@ static THD_FUNCTION(speed_thread, arg) {
             	}
             	else {
             		if (chVTTimeElapsedSinceX(overload_start) > MS2ST(CURRENT_MOTOR_TIMEOUT_MS)) {
-            			timeout_reset();
-            			mc_interface_set_pid_speed(0.0);
+            			mc_interface_release_motor();
             			grind_attemp++;
             			if(grind_attemp == GRIND_ATTEMPS) {
             				is_motor_stalled_fault = true;
