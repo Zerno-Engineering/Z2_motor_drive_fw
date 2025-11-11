@@ -465,7 +465,7 @@
 
 // Sensorless ERPM
 #ifndef MCCONF_FOC_SL_ERPM
-#define MCCONF_FOC_SL_ERPM 3500
+#define MCCONF_FOC_SL_ERPM 10000
 #endif
 
 // Control Sample Mode
