@@ -40,8 +40,8 @@
 #define EEPROM_ADDR_CALIBRATION_CHECK	6
 #define EEPROM_ADDR_MIN_CALIBRATED_VALUE 8
 #define EEPROM_ADDR_STEPS_VALUE 10
-#define CURRENT_MOTOR_TIMEOUT 1000
-#define GRIND_TIMEOUT 600 // value in seconds
+#define CURRENT_MOTOR_TIMEOUT_MS 250
+#define GRIND_TIMEOUT_SEC 600 // value in seconds
 #define CUTOFF_CURRENT 3.0 // current for a stalled motor
 #define NO_GRIND_CURRENT 0.6
 #define GRIND_ATTEMPS 1
@@ -452,7 +452,7 @@ void set_pid_constant(void) {
 	mc_configuration *mcconf_old = mempools_alloc_mcconf();
 	*mcconf_old = *mcconf;
 
-	if(speed_setpoint < 3600) {
+	if(speed_setpoint < 2000) {
 		mcconf-> s_pid_kd = 0.000400;
 	}
 	else {
@@ -614,9 +614,9 @@ static THD_FUNCTION(speed_thread, arg) {
         			   grind_start = chVTGetSystemTime();
         		   }
         		   else {
-        			   if (chVTTimeElapsedSinceX(grind_start) > S2ST(GRIND_TIMEOUT)) {
+        			   if (chVTTimeElapsedSinceX(grind_start) > S2ST(GRIND_TIMEOUT_SEC)) {
         				   timeout_reset();
-        				   mc_interface_set_pid_speed(0.0);
+        				   mc_interface_set_pid_speed(0.0); // need to use release here
         				   is_motor_grinding_enable = false;
         				   grind_start = 0;
         			   }
@@ -668,7 +668,7 @@ static THD_FUNCTION(speed_thread, arg) {
             		overload_start = chVTGetSystemTime();
             	}
             	else {
-            		if (chVTTimeElapsedSinceX(overload_start) > MS2ST(CURRENT_MOTOR_TIMEOUT)) {
+            		if (chVTTimeElapsedSinceX(overload_start) > MS2ST(CURRENT_MOTOR_TIMEOUT_MS)) {
             			timeout_reset();
             			mc_interface_set_pid_speed(0.0);
             			grind_attemp++;
@@ -750,14 +750,14 @@ static THD_FUNCTION(encoder_thread, arg) {
 		  speed_setpoint = 800.0 + lin_approx * 200.0;
 	  }
 
-	  if(speed_setpoint >= 3600) {
+	  if(speed_setpoint >= 2000) {
 		  if(!is_pid_kd_change_up) {
 			  set_pid_constant();
 			  is_pid_kd_change_up = true;
 			  is_pid_kd_change_down = false;
 		  }
 	  }
-	  if(speed_setpoint < 3600) {
+	  if(speed_setpoint < 2000) {
 		  if(!is_pid_kd_change_down) {
 			  set_pid_constant();
 			  is_pid_kd_change_down = true;
