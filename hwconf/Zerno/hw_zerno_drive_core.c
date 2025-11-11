@@ -453,7 +453,7 @@ void set_pid_constant(void) {
 	*mcconf_old = *mcconf;
 
 	if(speed_setpoint < 2000) {
-		mcconf-> s_pid_kd = 0.000400;
+		mcconf-> s_pid_kd = 0.000300; // for 7A it is set to kp: 0.000400
 	}
 	else {
 		mcconf-> s_pid_kd = 0.000020;
