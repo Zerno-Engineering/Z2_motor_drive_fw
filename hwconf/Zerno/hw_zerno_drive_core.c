@@ -70,18 +70,14 @@ int is_calibration_done = 0 ;
 
 float get_pfc_temp(void);
 float calib;
-float indexes;
-float ind;
 float lin_approx;
 
 void define_default_values(void);
 void encoder_calibrate_offset(void);
-void pid_speed(float set_rpm);
 
 bool is_pfc_ok(void);
 bool motor_start = false;
-//bool parity_check = false;
-//bool enable_spi = false;
+
 static volatile bool safety_calibration = false;
 static volatile bool is_erpm_done = false;
 static volatile bool is_pid_kd_change_up = false;
@@ -89,6 +85,7 @@ static volatile bool is_pid_kd_change_down = false;
 static volatile bool is_momentary_position_status = false;
 static volatile bool get_min_cal = false;
 static volatile bool is_encoder_done = false;
+
 bool is_default_erpm = true;
 bool is_stop_state = false ;
 bool is_motor_stalled_fault = false;
@@ -525,11 +522,6 @@ float get_pfc_temp(void) {
 	return temp_pfc_filtered;
 }
 
-void pid_speed(float set_rpm) {
-	timeout_reset();
-    mc_interface_set_pid_speed(set_rpm); //
-}
-
 static void terminal_print_info(int argc, const char **argv) {
 	(void)argc;
 	(void)argv;
@@ -702,7 +694,6 @@ static THD_FUNCTION(encoder_thread, arg) {
     chThdSleepMilliseconds(1000);
 
     eeprom_var minimum_cal, steps_cal;
-
 
     const float max_cal = 2.9;
 
