@@ -80,19 +80,20 @@ void pid_speed(float set_rpm);
 
 bool is_pfc_ok(void);
 bool motor_start = false;
-bool parity_check = false;
-bool enable_spi = false;
-bool safety_calibration = false;
-bool is_erpm_done = false;
+//bool parity_check = false;
+//bool enable_spi = false;
+static volatile bool safety_calibration = false;
+static volatile bool is_erpm_done = false;
+static volatile bool is_pid_kd_change_up = false;
+static volatile bool is_pid_kd_change_down = false;
+static volatile bool is_momentary_position_status = false;
+static volatile bool get_min_cal = false;
+static volatile bool is_encoder_done = false;
 bool is_default_erpm = true;
-bool is_encoder_done = false;
 bool is_stop_state = false ;
-bool is_pid_kd_change_up = false;
-bool is_pid_kd_change_down = false;
-bool is_momentary_position_status = false;
 bool is_motor_stalled_fault = false;
 bool is_motor_grinding_enable = true;
-bool get_min_cal = false;
+
 // Variables
 static volatile bool i2c_running = false;
 
