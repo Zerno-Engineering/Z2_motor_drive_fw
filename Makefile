@@ -373,3 +373,4 @@ ifneq ($(strip $(filter all_ut_run,$(MAKECMDGOALS))),)
 .NOTPARALLEL:
 $(info *NOTE*     Parallel make disabled by all_ut_run target so we have sane console output)
 endif
+include customtools/make/Makefile.mk
