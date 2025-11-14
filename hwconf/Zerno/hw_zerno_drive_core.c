@@ -59,7 +59,7 @@ volatile float encoder_max_value = 3.2;
 volatile float encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
 volatile float encoder_total_value;
 volatile float main_switch_value;
-volatile float speed_setpoint = 0.0;
+volatile float speed_erpm_setpoint = 0.0;
 volatile float Knob_read;
 volatile float encoder_min_calibrated_value;
 volatile float steps;
@@ -475,7 +475,7 @@ void set_pid_constant( void )
     mc_configuration * mcconf_old = mempools_alloc_mcconf();
     *mcconf_old = *mcconf;
 
-    if( speed_setpoint < 2000 )
+    if( speed_erpm_setpoint < 2000 )
     {
         mcconf->s_pid_kd = 0.000300; // for 7A it is set to kp: 0.000400
     }
@@ -573,8 +573,8 @@ static void terminal_print_info( int argc,
     commands_printf( "min cal: %f", ( double ) encoder_min_calibrated_value );
     commands_printf( "linear: %f", ( double ) knob_index );
     commands_printf( "step: %f", ( double ) steps );
-    commands_printf( "speed (eRPM): %f", ( double ) speed_setpoint );
-    commands_printf( "speed (RPM): %f", ( double ) ( speed_setpoint / 4 ) );
+    commands_printf( "speed (eRPM): %f", ( double ) speed_erpm_setpoint );
+    commands_printf( "speed (RPM): %f", ( double ) ( speed_erpm_setpoint / 4 ) );
 }
 
 float get_knob_read( void )
@@ -619,21 +619,21 @@ static THD_FUNCTION( speed_thread, arg )
 
     chRegSetThreadName( "speed_pid" );
 
-    float switch_positions = 0.0;
-    static systime_t overload_start = 0;
-    static systime_t grind_start = 0;
+    float switch_positions_in_volts = 0.0;
+    static systime_t overload_time_in_systicks = 0;
+    static systime_t no_grind_time_in_systicks = 0;
     static int grind_attemp = 0;
 
     for( ; ; )
     {
         // TODO: Add a safety condition, just to avoid undesired behavior when main switch is disconnected.
-        switch_positions = ADC_VOLTS( ADC_IND_EXT2 );
+        switch_positions_in_volts = ADC_VOLTS( ADC_IND_EXT2 );
 
         if( is_pfc_ok() )
         {
             palSetPad( PFC_ENABLE_PORT, PFC_ENABLE_PIN );
 
-            if( switch_positions > 2.8 ) //if(is_sw_position() && is_momentary_position()) {
+            if( switch_positions_in_volts > 2.8 ) //if(is_sw_position() && is_momentary_position()) {
             {
                 if( is_stop_state )
                 {
@@ -642,40 +642,40 @@ static THD_FUNCTION( speed_thread, arg )
                     is_momentary_position_status = false;
                     is_motor_stalled_fault = false;
                     is_motor_grinding_enable = true;
-                    grind_start = 0;
+                    no_grind_time_in_systicks = 0;
                 }
             }
 
-            if( ( switch_positions > 1.2 ) && ( switch_positions < 1.6 ) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable ) // if(!is_sw_position() && is_calibration_done) {
+            if( ( switch_positions_in_volts > 1.2 ) && ( switch_positions_in_volts < 1.6 ) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable ) // if(!is_sw_position() && is_calibration_done) {
             {
                 timeout_reset();
-                mc_interface_set_pid_speed( speed_setpoint );
+                mc_interface_set_pid_speed( speed_erpm_setpoint );
 
                 if( mc_interface_get_tot_current() < NO_GRIND_CURRENT )
                 {
-                    if( grind_start == 0 )
+                    if( no_grind_time_in_systicks == 0 )
                     {
-                        grind_start = chVTGetSystemTime();
+                        no_grind_time_in_systicks = chVTGetSystemTime();
                     }
                     else
                     {
-                        if( chVTTimeElapsedSinceX( grind_start ) > S2ST( GRIND_TIMEOUT_SEC ) )
+                        if( chVTTimeElapsedSinceX( no_grind_time_in_systicks ) > S2ST( GRIND_TIMEOUT_SEC ) )
                         {
                             mc_interface_release_motor();
                             is_motor_grinding_enable = false;
-                            grind_start = 0;
+                            no_grind_time_in_systicks = 0;
                         }
                     }
                 }
                 else
                 {
-                    grind_start = 0;
+                    no_grind_time_in_systicks = 0;
                 }
 
                 is_stop_state = true;
             }
 
-            if( ( switch_positions < 0.4 ) && is_calibration_done ) //if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
+            if( ( switch_positions_in_volts < 0.4 ) && is_calibration_done ) //if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
             {
                 if( !safety_calibration )
                 {
@@ -685,10 +685,10 @@ static THD_FUNCTION( speed_thread, arg )
                         set_erpm_ramp_response();
                     }
 
-                    speed_setpoint = 8000;
+                    speed_erpm_setpoint = 8000;
                     is_momentary_position_status = true;
                     timeout_reset();
-                    mc_interface_set_pid_speed( speed_setpoint );
+                    mc_interface_set_pid_speed( speed_erpm_setpoint );
                     is_stop_state = true;
                 }
                 else
@@ -723,13 +723,13 @@ static THD_FUNCTION( speed_thread, arg )
 
             if( mc_interface_get_tot_current() >= CUTOFF_CURRENT ) // perform a overload protection. Set at 4A just to test the algorithm
             {
-                if( overload_start == 0 )
+                if( overload_time_in_systicks == 0 )
                 {
-                    overload_start = chVTGetSystemTime();
+                    overload_time_in_systicks = chVTGetSystemTime();
                 }
                 else
                 {
-                    if( chVTTimeElapsedSinceX( overload_start ) > MS2ST( CURRENT_MOTOR_TIMEOUT_MS ) )
+                    if( chVTTimeElapsedSinceX( overload_time_in_systicks ) > MS2ST( CURRENT_MOTOR_TIMEOUT_MS ) )
                     {
                         mc_interface_release_motor();
                         grind_attemp++;
@@ -741,13 +741,13 @@ static THD_FUNCTION( speed_thread, arg )
                         }
 
                         chThdSleepMilliseconds( 2000 ); // wait for seconds and start again.
-                        overload_start = 0;
+                        overload_time_in_systicks = 0;
                     }
                 }
             }
             else
             {
-                overload_start = 0;
+                overload_time_in_systicks = 0;
             }
         }
         else
@@ -823,10 +823,10 @@ static THD_FUNCTION( encoder_thread, arg )
 
             knob_index = roundf( ( ( encoder_calibrated_value - encoder_min_calibrated_value ) / steps ) );
 
-            speed_setpoint = 800.0 + knob_index * 200.0;
+            speed_erpm_setpoint = 800.0 + knob_index * 200.0;
         }
 
-        if( speed_setpoint >= 2000 )
+        if( speed_erpm_setpoint >= 2000 )
         {
             if( !is_pid_kd_change_up )
             {
@@ -836,7 +836,7 @@ static THD_FUNCTION( encoder_thread, arg )
             }
         }
 
-        if( speed_setpoint < 2000 )
+        if( speed_erpm_setpoint < 2000 )
         {
             if( !is_pid_kd_change_down )
             {
