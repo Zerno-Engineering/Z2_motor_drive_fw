@@ -41,8 +41,8 @@
 #define EEPROM_ADDR_MIN_CALIBRATED_VALUE    8
 #define EEPROM_ADDR_STEPS_VALUE             10
 #define CURRENT_MOTOR_TIMEOUT_MS            250
-#define GRIND_TIMEOUT_SEC                   600 // value in seconds
-#define CUTOFF_CURRENT                      3.0 // current for a stalled motor
+#define GRIND_TIMEOUT_SEC                   600
+#define CUTOFF_CURRENT                      3.0
 #define NO_GRIND_CURRENT                    0.6
 #define GRIND_ATTEMPS                       1
 #define OFFSET_FACTOR_CORRECTION            0.05
@@ -57,7 +57,7 @@ static bool speed_thread_running = false;
 static bool encoder_thread_running = false;
 
 volatile float encoder_max_value = 3.2;
-volatile float encoder_min_value = 0.0; //not sure if will be 0, but need to be tested in hardware.
+volatile float encoder_min_value = 0.0;
 volatile float encoder_total_value;
 volatile float main_switch_value;
 volatile float speed_erpm_setpoint = 0.0;
@@ -208,7 +208,7 @@ void hw_init_gpio( void )
 
     define_default_values();
 
-    encoder_calibrate_offset(); // disable calibrate offset to avoid  data encoder readings
+    encoder_calibrate_offset();
 
     if( !speed_thread_running )
     {
@@ -426,10 +426,10 @@ void encoder_calibrate_offset( void )
 {
     eeprom_var offset_value, calibration_check;
 
-    encoder_total_value = ADC_VOLTS( ADC_IND_EXT ); // get the knob position values
-    main_switch_value = ADC_VOLTS( ADC_IND_EXT2 );  // get the switch position values
+    encoder_total_value = ADC_VOLTS( ADC_IND_EXT );
+    main_switch_value = ADC_VOLTS( ADC_IND_EXT2 );
 
-    if( !is_momentary_position() )                  // Digital and analog detection for calibration mode.
+    if( !is_momentary_position() )
     {
         encoder_min_value = encoder_total_value;
         offset_value.as_float = encoder_min_value;
@@ -634,7 +634,7 @@ static THD_FUNCTION( speed_thread, arg )
         {
             palSetPad( PFC_ENABLE_PORT, PFC_ENABLE_PIN );
 
-            if( switch_positions_in_volts > 2.8 ) //if(is_sw_position() && is_momentary_position()) {
+            if( switch_positions_in_volts > 2.8 )
             {
                 if( is_stop_state )
                 {
@@ -647,7 +647,7 @@ static THD_FUNCTION( speed_thread, arg )
                 }
             }
 
-            if( ( switch_positions_in_volts > 1.2 ) && ( switch_positions_in_volts < 1.6 ) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable ) // if(!is_sw_position() && is_calibration_done) {
+            if( ( switch_positions_in_volts > 1.2 ) && ( switch_positions_in_volts < 1.6 ) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable )
             {
                 timeout_reset();
                 mc_interface_set_pid_speed( speed_erpm_setpoint );
@@ -676,7 +676,7 @@ static THD_FUNCTION( speed_thread, arg )
                 is_stop_state = true;
             }
 
-            if( ( switch_positions_in_volts < 0.4 ) && is_calibration_done ) //if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
+            if( ( switch_positions_in_volts < 0.4 ) && is_calibration_done )
             {
                 if( !safety_calibration )
                 {
@@ -703,8 +703,8 @@ static THD_FUNCTION( speed_thread, arg )
 
                         is_default_erpm = true;
                         set_erpm_ramp_response();
-                        encoder_calibrate_offset(); // added here, need to wait for the ADC readings to calibrate the offset
-                        encoder_cal_detection();    // perform the encoder_foc_calibration. Here will perform at first time.
+                        encoder_calibrate_offset();
+                        encoder_cal_detection();
                         store_minimum_value = true;
                     }
                 }
@@ -722,7 +722,7 @@ static THD_FUNCTION( speed_thread, arg )
                 }
             }
 
-            if( mc_interface_get_tot_current() >= CUTOFF_CURRENT ) // perform a overload protection. Set at 4A just to test the algorithm
+            if( mc_interface_get_tot_current() >= CUTOFF_CURRENT )
             {
                 if( overload_time_in_systicks == 0 )
                 {
@@ -741,7 +741,7 @@ static THD_FUNCTION( speed_thread, arg )
                             grind_attemp = 0;
                         }
 
-                        chThdSleepMilliseconds( 2000 ); // wait for seconds and start again.
+                        chThdSleepMilliseconds( 2000 );
                         overload_time_in_systicks = 0;
                     }
                 }
@@ -782,7 +782,6 @@ static THD_FUNCTION( encoder_thread, arg )
         {
             for( int i = 0; i < 15; i++ )
             {
-                // Knob_read = ADC_VOLTS(ADC_IND_EXT); // get the knob voltage readings.
                 samples[ i ] = Knob_read;
                 chThdSleepMilliseconds( 10 );
             }
@@ -804,7 +803,7 @@ static THD_FUNCTION( encoder_thread, arg )
                 }
             }
 
-            encoder_calibrated_value = ( encoder_min_value - get_encoder_sample ); // enable this to use the encoder calibration
+            encoder_calibrated_value = ( encoder_min_value - get_encoder_sample );
 
             if( encoder_calibrated_value < 0 )
             {
