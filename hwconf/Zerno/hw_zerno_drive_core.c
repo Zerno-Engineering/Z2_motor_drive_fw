@@ -42,8 +42,8 @@
 #define EEPROM_ADDR_STEPS_VALUE             10
 #define CURRENT_MOTOR_TIMEOUT_MS            250
 #define GRIND_TIMEOUT_SEC                   600
-#define CUTOFF_CURRENT                      3.0
-#define NO_GRIND_CURRENT                    0.6
+#define CUTOFF_CURRENT_AMPS              	3.0
+#define NO_GRIND_CURRENT_AMPS           	0.6
 #define GRIND_ATTEMPS                       1
 #define OFFSET_FACTOR_CORRECTION            0.05
 
@@ -652,7 +652,7 @@ static THD_FUNCTION( speed_thread, arg )
                 timeout_reset();
                 mc_interface_set_pid_speed( speed_erpm_setpoint );
 
-                if( mc_interface_get_tot_current() < NO_GRIND_CURRENT )
+                if( mc_interface_get_tot_current() < NO_GRIND_CURRENT_AMPS)
                 {
                     if( no_grind_time_in_systicks == 0 )
                     {
@@ -722,7 +722,7 @@ static THD_FUNCTION( speed_thread, arg )
                 }
             }
 
-            if( mc_interface_get_tot_current() >= CUTOFF_CURRENT )
+            if( mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS )
             {
                 if( overload_time_in_systicks == 0 )
                 {
