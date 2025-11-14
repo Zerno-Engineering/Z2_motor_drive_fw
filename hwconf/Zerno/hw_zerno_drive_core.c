@@ -45,6 +45,7 @@
 #define CUTOFF_CURRENT                      3.0 // current for a stalled motor
 #define NO_GRIND_CURRENT                    0.6
 #define GRIND_ATTEMPS                       1
+#define OFFSET_FACTOR_CORRECTION            0.05
 
 static THD_FUNCTION( speed_thread, arg );
 static THD_FUNCTION( encoder_thread, arg );
@@ -798,7 +799,7 @@ static THD_FUNCTION( encoder_thread, arg )
                     }
                     else
                     {
-                        get_encoder_sample = samples[ i - 1 ] - 0.05;
+                        get_encoder_sample = samples[ i - 1 ] - OFFSET_FACTOR_CORRECTION;
                     }
                 }
             }
