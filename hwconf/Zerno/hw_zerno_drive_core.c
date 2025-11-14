@@ -61,7 +61,7 @@ volatile float encoder_total_value;
 volatile float main_switch_value;
 volatile float speed_setpoint = 0.0;
 volatile float Knob_read;
-volatile float min_cal;
+volatile float encoder_min_calibrated_value;
 volatile float steps;
 
 static void adc_read_callback( void );
@@ -69,8 +69,8 @@ static void adc_read_callback( void );
 int is_calibration_done = 0;
 
 float get_pfc_temp( void );
-float calib;
-float lin_approx;
+float encoder_calibrated_value;
+float knob_index;
 
 void define_default_values( void );
 void encoder_calibrate_offset( void );
@@ -83,7 +83,7 @@ static volatile bool is_erpm_done = false;
 static volatile bool is_pid_kd_change_up = false;
 static volatile bool is_pid_kd_change_down = false;
 static volatile bool is_momentary_position_status = false;
-static volatile bool get_min_cal = false;
+static volatile bool store_minimum_value= false;
 static volatile bool is_encoder_done = false;
 
 bool is_default_erpm = true;
@@ -406,7 +406,7 @@ float main_switch_adc_value( void )
  */
 void define_default_values( void )
 {
-    eeprom_var default_offset, default_calibration, min_cal_stored, step_stored;
+    eeprom_var default_offset, default_calibration, min_calibrated_stored, step_stored;
 
     conf_general_read_eeprom_var_hw( &default_offset, EEPROM_ADDR_ENCODER_VALUE );
     encoder_min_value = default_offset.as_float;
@@ -414,8 +414,8 @@ void define_default_values( void )
     conf_general_read_eeprom_var_hw( &default_calibration, EEPROM_ADDR_CALIBRATION_CHECK );
     is_calibration_done = default_calibration.as_i32;
 
-    conf_general_read_eeprom_var_hw( &min_cal_stored, EEPROM_ADDR_MIN_CALIBRATED_VALUE );
-    min_cal = min_cal_stored.as_float;
+    conf_general_read_eeprom_var_hw( &min_calibrated_stored, EEPROM_ADDR_MIN_CALIBRATED_VALUE );
+    encoder_min_calibrated_value = min_calibrated_stored.as_float;
 
     conf_general_read_eeprom_var_hw( &step_stored, EEPROM_ADDR_STEPS_VALUE );
     steps = step_stored.as_float;
@@ -568,10 +568,10 @@ static void terminal_print_info( int argc,
     ( is_pfc_ok() ) ? commands_printf( "PFC:OK" ) : commands_printf( "PFC:OFF" );
 
     commands_printf( "ADC: %f", ( double ) Knob_read );
-    commands_printf( "ADC_cal: %f", ( double ) calib );
+    commands_printf( "ADC_cal: %f", ( double ) encoder_calibrated_value );
     commands_printf( "Encoder min: %f", ( double ) encoder_min_value );
-    commands_printf( "min cal: %f", ( double ) min_cal );
-    commands_printf( "linear: %f", ( double ) lin_approx );
+    commands_printf( "min cal: %f", ( double ) encoder_min_calibrated_value );
+    commands_printf( "linear: %f", ( double ) knob_index );
     commands_printf( "step: %f", ( double ) steps );
     commands_printf( "speed (eRPM): %f", ( double ) speed_setpoint );
     commands_printf( "speed (RPM): %f", ( double ) ( speed_setpoint / 4 ) );
@@ -579,7 +579,7 @@ static void terminal_print_info( int argc,
 
 float get_knob_read( void )
 {
-    return( calib );
+    return( encoder_calibrated_value );
 }
 
 static void terminal_motor_run( int argc,
@@ -619,7 +619,7 @@ static THD_FUNCTION( speed_thread, arg )
 
     chRegSetThreadName( "speed_pid" );
 
-    float sw_main = 0.0;
+    float switch_positions = 0.0;
     static systime_t overload_start = 0;
     static systime_t grind_start = 0;
     static int grind_attemp = 0;
@@ -627,13 +627,13 @@ static THD_FUNCTION( speed_thread, arg )
     for( ; ; )
     {
         // TODO: Add a safety condition, just to avoid undesired behavior when main switch is disconnected.
-        sw_main = ADC_VOLTS( ADC_IND_EXT2 );
+        switch_positions = ADC_VOLTS( ADC_IND_EXT2 );
 
         if( is_pfc_ok() )
         {
             palSetPad( PFC_ENABLE_PORT, PFC_ENABLE_PIN );
 
-            if( sw_main > 2.8 ) //if(is_sw_position() && is_momentary_position()) {
+            if( switch_positions > 2.8 ) //if(is_sw_position() && is_momentary_position()) {
             {
                 if( is_stop_state )
                 {
@@ -646,7 +646,7 @@ static THD_FUNCTION( speed_thread, arg )
                 }
             }
 
-            if( ( sw_main > 1.2 ) && ( sw_main < 1.6 ) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable ) // if(!is_sw_position() && is_calibration_done) {
+            if( ( switch_positions > 1.2 ) && ( switch_positions < 1.6 ) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable ) // if(!is_sw_position() && is_calibration_done) {
             {
                 timeout_reset();
                 mc_interface_set_pid_speed( speed_setpoint );
@@ -675,7 +675,7 @@ static THD_FUNCTION( speed_thread, arg )
                 is_stop_state = true;
             }
 
-            if( ( sw_main < 0.4 ) && is_calibration_done ) //if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
+            if( ( switch_positions < 0.4 ) && is_calibration_done ) //if(!is_momentary_position() && is_calibration_done) { // && is_calibration_done
             {
                 if( !safety_calibration )
                 {
@@ -704,7 +704,7 @@ static THD_FUNCTION( speed_thread, arg )
                         set_erpm_ramp_response();
                         encoder_calibrate_offset(); // added here, need to wait for the ADC readings to calibrate the offset
                         encoder_cal_detection();    // perform the encoder_foc_calibration. Here will perform at first time.
-                        get_min_cal = true;
+                        store_minimum_value = true;
                     }
                 }
             }
@@ -767,15 +767,15 @@ static THD_FUNCTION( encoder_thread, arg )
 
     chThdSleepMilliseconds( 1000 );
 
-    eeprom_var minimum_cal, steps_cal;
+    eeprom_var encoder_min_value_stored, step_value_stored;
 
-    const float max_cal = 2.9;
+    const float encoder_max_calibrated_value = 2.9;
 
     for( ; ; )
     {
         float samples[ 15 ];
         float diff;
-        float aux = 0.0;
+        float get_encoder_sample = 0.0;
 
         if( !is_momentary_position_status )
         {
@@ -794,36 +794,36 @@ static THD_FUNCTION( encoder_thread, arg )
 
                     if( diff > 0.2 )
                     {
-                        aux = 0.0;
+                        get_encoder_sample = 0.0;
                     }
                     else
                     {
-                        aux = samples[ i - 1 ] - 0.05;
+                        get_encoder_sample = samples[ i - 1 ] - 0.05;
                     }
                 }
             }
 
-            calib = ( encoder_min_value - aux ); // enable this to use the encoder calibration
+            encoder_calibrated_value = ( encoder_min_value - get_encoder_sample ); // enable this to use the encoder calibration
 
-            if( calib < 0 )
+            if( encoder_calibrated_value < 0 )
             {
-                calib += 3.22;
+                encoder_calibrated_value += 3.22;
             }
 
-            if( get_min_cal )
+            if( store_minimum_value )
             {
-                min_cal = calib;
-                steps = ( max_cal - min_cal ) / 27;
-                minimum_cal.as_float = min_cal;
-                conf_general_store_eeprom_var_hw( &minimum_cal, EEPROM_ADDR_MIN_CALIBRATED_VALUE );
-                steps_cal.as_float = steps;
-                conf_general_store_eeprom_var_hw( &steps_cal, EEPROM_ADDR_STEPS_VALUE );
-                get_min_cal = false;
+                encoder_min_calibrated_value = encoder_calibrated_value;
+                steps = ( encoder_max_calibrated_value - encoder_min_calibrated_value ) / 27;
+                encoder_min_value_stored.as_float = encoder_min_calibrated_value;
+                conf_general_store_eeprom_var_hw( &encoder_min_value_stored, EEPROM_ADDR_MIN_CALIBRATED_VALUE );
+                step_value_stored.as_float = steps;
+                conf_general_store_eeprom_var_hw( &step_value_stored, EEPROM_ADDR_STEPS_VALUE );
+                store_minimum_value= false;
             }
 
-            lin_approx = roundf( ( ( calib - min_cal ) / steps ) );
+            knob_index = roundf( ( ( encoder_calibrated_value - encoder_min_calibrated_value ) / steps ) );
 
-            speed_setpoint = 800.0 + lin_approx * 200.0;
+            speed_setpoint = 800.0 + knob_index * 200.0;
         }
 
         if( speed_setpoint >= 2000 )
