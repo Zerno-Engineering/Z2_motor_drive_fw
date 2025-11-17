@@ -57,11 +57,11 @@ static bool speed_thread_running = false;
 static bool encoder_thread_running = false;
 
 volatile float encoder_max_value = 3.2;
-volatile float encoder_min_value = 0.0;
-volatile float encoder_total_value;
+volatile float encoder_min_value_in_volts = 0.0;
+volatile float encoder_total_value_volts;
 volatile float main_switch_value;
 volatile float speed_erpm_setpoint = 0.0;
-volatile float Knob_read;
+volatile float knob_read_in_volts;
 volatile float encoder_min_calibrated_value;
 volatile float steps;
 
@@ -70,7 +70,7 @@ static void adc_read_callback( void );
 int is_calibration_done = 0;
 
 float get_pfc_temp( void );
-float encoder_calibrated_value;
+float encoder_calibrated_value_in_volts;
 float knob_index;
 
 void define_default_values( void );
@@ -410,7 +410,7 @@ void define_default_values( void )
     eeprom_var default_offset, default_calibration, min_calibrated_stored, step_stored;
 
     conf_general_read_eeprom_var_hw( &default_offset, EEPROM_ADDR_ENCODER_VALUE );
-    encoder_min_value = default_offset.as_float;
+    encoder_min_value_in_volts = default_offset.as_float;
 
     conf_general_read_eeprom_var_hw( &default_calibration, EEPROM_ADDR_CALIBRATION_CHECK );
     is_calibration_done = default_calibration.as_i32;
@@ -426,13 +426,13 @@ void encoder_calibrate_offset( void )
 {
     eeprom_var offset_value, calibration_check;
 
-    encoder_total_value = ADC_VOLTS( ADC_IND_EXT );
+    encoder_total_value_volts = ADC_VOLTS( ADC_IND_EXT );
     main_switch_value = ADC_VOLTS( ADC_IND_EXT2 );
 
     if( !is_momentary_position() )
     {
-        encoder_min_value = encoder_total_value;
-        offset_value.as_float = encoder_min_value;
+        encoder_min_value_in_volts = encoder_total_value_volts;
+        offset_value.as_float = encoder_min_value_in_volts;
         conf_general_store_eeprom_var_hw( &offset_value, EEPROM_ADDR_ENCODER_VALUE );
         encoder_max_value = 3.2;
         is_calibration_done = 1;
@@ -540,7 +540,7 @@ static void adc_read_callback( void )
 
     filter_knob = ADC_VOLTS( ADC_IND_EXT );
 
-    UTILS_LP_FAST( Knob_read, filter_knob, 0.01 );
+    UTILS_LP_FAST( knob_read_in_volts, filter_knob, 0.01 );
 }
 
 float get_pfc_temp( void )
@@ -568,9 +568,9 @@ static void terminal_print_info( int argc,
 
     ( is_pfc_ok() ) ? commands_printf( "PFC:OK" ) : commands_printf( "PFC:OFF" );
 
-    commands_printf( "ADC: %f", ( double ) Knob_read );
-    commands_printf( "ADC_cal: %f", ( double ) encoder_calibrated_value );
-    commands_printf( "Encoder min: %f", ( double ) encoder_min_value );
+    commands_printf( "ADC: %f", ( double ) knob_read_in_volts );
+    commands_printf( "ADC_cal: %f", ( double ) encoder_calibrated_value_in_volts );
+    commands_printf( "Encoder min: %f", ( double ) encoder_min_value_in_volts );
     commands_printf( "min cal: %f", ( double ) encoder_min_calibrated_value );
     commands_printf( "linear: %f", ( double ) knob_index );
     commands_printf( "step: %f", ( double ) steps );
@@ -580,7 +580,7 @@ static void terminal_print_info( int argc,
 
 float get_knob_read( void )
 {
-    return( encoder_calibrated_value );
+    return( encoder_calibrated_value_in_volts );
 }
 
 static void terminal_motor_run( int argc,
@@ -774,15 +774,15 @@ static THD_FUNCTION( encoder_thread, arg )
 
     for( ; ; )
     {
-        float samples[ 15 ];
+        float sample_volts[ 15 ];
         float diff;
-        float get_encoder_sample = 0.0;
+        float get_encoder_sample_in_volts = 0.0;
 
         if( !is_momentary_position_status )
         {
             for( int i = 0; i < 15; i++ )
             {
-                samples[ i ] = Knob_read;
+                sample_volts[ i ] = knob_read_in_volts;
                 chThdSleepMilliseconds( 10 );
             }
 
@@ -790,29 +790,29 @@ static THD_FUNCTION( encoder_thread, arg )
             {
                 if( i != 0 )
                 {
-                    diff = fabs( samples[ i ] - samples[ i - 1 ] );
+                    diff = fabs( sample_volts[ i ] - sample_volts[ i - 1 ] );
 
                     if( diff > 0.2 )
                     {
-                        get_encoder_sample = 0.0;
+                        get_encoder_sample_in_volts = 0.0;
                     }
                     else
                     {
-                        get_encoder_sample = samples[ i - 1 ] - OFFSET_FACTOR_CORRECTION;
+                        get_encoder_sample_in_volts = sample_volts[ i - 1 ] - OFFSET_FACTOR_CORRECTION;
                     }
                 }
             }
 
-            encoder_calibrated_value = ( encoder_min_value - get_encoder_sample );
+            encoder_calibrated_value_in_volts = ( encoder_min_value_in_volts - get_encoder_sample_in_volts );
 
-            if( encoder_calibrated_value < 0 )
+            if( encoder_calibrated_value_in_volts < 0 )
             {
-                encoder_calibrated_value += 3.22;
+                encoder_calibrated_value_in_volts += 3.22;
             }
 
             if( store_minimum_value )
             {
-                encoder_min_calibrated_value = encoder_calibrated_value;
+                encoder_min_calibrated_value = encoder_calibrated_value_in_volts;
                 steps = ( encoder_max_calibrated_value - encoder_min_calibrated_value ) / 27;
                 encoder_min_value_stored.as_float = encoder_min_calibrated_value;
                 conf_general_store_eeprom_var_hw( &encoder_min_value_stored, EEPROM_ADDR_MIN_CALIBRATED_VALUE );
@@ -821,7 +821,7 @@ static THD_FUNCTION( encoder_thread, arg )
                 store_minimum_value= false;
             }
 
-            knob_index = roundf( ( ( encoder_calibrated_value - encoder_min_calibrated_value ) / steps ) );
+            knob_index = roundf( ( ( encoder_calibrated_value_in_volts - encoder_min_calibrated_value ) / steps ) );
 
             speed_erpm_setpoint = 800.0 + knob_index * 200.0;
         }
