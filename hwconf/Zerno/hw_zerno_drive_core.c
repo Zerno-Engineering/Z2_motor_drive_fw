@@ -395,7 +395,10 @@ float main_switch_adc_value( void )
  */
 static void define_default_values( void )
 {
-    eeprom_var default_offset, default_calibration, min_calibrated_stored, step_stored;
+    eeprom_var default_offset;
+    eeprom_var default_calibration;
+    eeprom_var min_calibrated_stored;
+    eeprom_var step_stored;
 
     conf_general_read_eeprom_var_hw( &default_offset, EEPROM_ADDR_ENCODER_VALUE );
     encoder_min_value_in_volts = default_offset.as_float;
@@ -412,7 +415,8 @@ static void define_default_values( void )
 
 static void encoder_calibrate_offset( void )
 {
-    eeprom_var offset_value, calibration_check;
+    eeprom_var offset_value;
+    eeprom_var calibration_check;
 
     encoder_total_value_volts = ADC_VOLTS( ADC_IND_EXT );
     main_switch_value_in_volts = ADC_VOLTS( ADC_IND_EXT2 );
@@ -547,7 +551,8 @@ static void terminal_print_info( int argc,
     ( void ) argc;
     ( void ) argv;
 
-    eeprom_var data_stored, check_cal;
+    eeprom_var data_stored;
+    eeprom_var check_cal;
 
     conf_general_read_eeprom_var_hw( &data_stored, EEPROM_ADDR_ENCODER_VALUE );
     commands_printf( "Encoder stored value: %f", ( double ) ( data_stored.as_float ) );
@@ -756,7 +761,8 @@ static THD_FUNCTION( encoder_thread, arg )
 
     chThdSleepMilliseconds( 1000 );
 
-    eeprom_var encoder_min_value_stored, step_value_stored;
+    eeprom_var encoder_min_value_stored;
+    eeprom_var step_value_stored;
 
     const float encoder_max_calibrated_value = 2.9;
 
