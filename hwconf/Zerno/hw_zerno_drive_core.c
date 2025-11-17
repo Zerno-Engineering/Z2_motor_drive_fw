@@ -150,7 +150,6 @@ void hw_init_gpio( void )
                    PAL_STM32_OSPEED_HIGHEST |
                    PAL_STM32_PUDR_FLOATING );
 
-    //INIT_BR();
 
     // Hall sensors
     palSetPadMode( HW_HALL_ENC_GPIO1, HW_HALL_ENC_PIN1, PAL_MODE_INPUT );
@@ -164,14 +163,6 @@ void hw_init_gpio( void )
                    PAL_STM32_OSPEED_HIGHEST );
     PHASE_FILTER_OFF();
 
-    /*
-     * // Current filter
-     * palSetPadMode(CURRENT_FILTER_GPIO, CURRENT_FILTER_PIN,
-     *      PAL_MODE_OUTPUT_PUSHPULL |
-     *      PAL_STM32_OSPEED_HIGHEST);
-     *
-     * CURRENT_FILTER_OFF();
-     */
     // Sensor port voltage
     SENSOR_PORT_3V3();
     palSetPadMode( SENSOR_VOLTAGE_GPIO, SENSOR_VOLTAGE_PIN,
@@ -193,7 +184,6 @@ void hw_init_gpio( void )
     palSetPadMode( PFC_STATUS_PORT, PFC_STATUS_PIN, PAL_MODE_INPUT );
     palSetPadMode( PFC_ENABLE_PORT, PFC_ENABLE_PIN, PAL_MODE_OUTPUT_PUSHPULL );
 
-    //palSetPadMode(GPIOB, 0, PAL_MODE_INPUT_ANALOG);
     palSetPadMode( GPIOB, 1, PAL_MODE_INPUT_ANALOG );
 
     palSetPadMode( GPIOC, 0, PAL_MODE_INPUT_ANALOG );
@@ -202,11 +192,7 @@ void hw_init_gpio( void )
     palSetPadMode( GPIOC, 3, PAL_MODE_INPUT_ANALOG );
     palSetPadMode( GPIOC, 4, PAL_MODE_INPUT_ANALOG );
 
-    // DAC as voltage reference for shunt amps
     palSetPadMode( GPIOA, 4, PAL_MODE_INPUT_ANALOG );
-    //RCC_APB1PeriphClockCmd(RCC_APB1Periph_DAC, ENABLE);
-    //DAC->CR |= DAC_CR_EN1;
-    //DAC->DHR12R1 = 2047;
 
     mc_interface_set_pwm_callback( adc_read_callback );
 
@@ -248,13 +234,12 @@ void hw_setup_adc_channels( void )
     ADC_RegularChannelConfig( ADC1, ADC_Channel_14, 4, ADC_SampleTime_15Cycles );      // 9 TEMP MOTOR
     ADC_RegularChannelConfig( ADC1, ADC_Channel_Vrefint, 5, ADC_SampleTime_15Cycles ); // 12
     ADC_RegularChannelConfig( ADC1, ADC_Channel_4, 6, ADC_SampleTime_15Cycles );       // 15 PA4 PFC temperature.
-    //ADC_RegularChannelConfig(ADC1, ADC_Channel_8, 6, ADC_SampleTime_15Cycles);
+
 
     // ADC2 regular channels
     ADC_RegularChannelConfig( ADC2, ADC_Channel_11, 1, ADC_SampleTime_15Cycles ); // 1
     ADC_RegularChannelConfig( ADC2, ADC_Channel_1, 2, ADC_SampleTime_15Cycles );  // 4
     ADC_RegularChannelConfig( ADC2, ADC_Channel_6, 3, ADC_SampleTime_15Cycles );  // 7
-    //ADC_RegularChannelConfig(ADC2, ADC_Channel_15, 4, ADC_SampleTime_15Cycles);	// 10
     ADC_RegularChannelConfig( ADC2, ADC_Channel_0, 5, ADC_SampleTime_15Cycles );  // 13
     ADC_RegularChannelConfig( ADC2, ADC_Channel_9, 6, ADC_SampleTime_15Cycles );  // 16
 
