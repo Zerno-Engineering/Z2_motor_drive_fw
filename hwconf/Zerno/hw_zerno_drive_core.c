@@ -77,8 +77,8 @@ float get_pfc_temp( void );
 float encoder_calibrated_value_in_volts;
 float knob_index;
 
-void define_default_values( void );
-void encoder_calibrate_offset( void );
+static void define_default_values( void );
+static void encoder_calibrate_offset( void );
 
 bool is_pfc_ok( void );
 bool motor_start = false;
@@ -393,7 +393,7 @@ float main_switch_adc_value( void )
 /* Load the stored values during start-up
  *
  */
-void define_default_values( void )
+static void define_default_values( void )
 {
     eeprom_var default_offset, default_calibration, min_calibrated_stored, step_stored;
 
@@ -410,7 +410,7 @@ void define_default_values( void )
     steps = step_stored.as_float;
 }
 
-void encoder_calibrate_offset( void )
+static void encoder_calibrate_offset( void )
 {
     eeprom_var offset_value, calibration_check;
 
