@@ -70,7 +70,7 @@ volatile float encoder_min_calibrated_value;
 volatile float steps;
 
 static void adc_read_callback( void );
-// variable for test purposes
+
 int is_calibration_done = 0;
 
 float get_pfc_temp( void );
@@ -234,7 +234,6 @@ void hw_setup_adc_channels( void )
     ADC_RegularChannelConfig( ADC1, ADC_Channel_14, 4, ADC_SampleTime_15Cycles );      // 9 TEMP MOTOR
     ADC_RegularChannelConfig( ADC1, ADC_Channel_Vrefint, 5, ADC_SampleTime_15Cycles ); // 12
     ADC_RegularChannelConfig( ADC1, ADC_Channel_4, 6, ADC_SampleTime_15Cycles );       // 15 PA4 PFC temperature.
-
 
     // ADC2 regular channels
     ADC_RegularChannelConfig( ADC2, ADC_Channel_11, 1, ADC_SampleTime_15Cycles ); // 1
