@@ -42,10 +42,14 @@
 #define EEPROM_ADDR_STEPS_VALUE             10
 #define CURRENT_MOTOR_TIMEOUT_MS            250
 #define GRIND_TIMEOUT_SEC                   600
-#define CUTOFF_CURRENT_AMPS              	3.0
-#define NO_GRIND_CURRENT_AMPS           	0.6
+#define CUTOFF_CURRENT_AMPS                 3.0
+#define NO_GRIND_CURRENT_AMPS               0.6
 #define GRIND_ATTEMPS                       1
 #define OFFSET_FACTOR_CORRECTION            0.05
+#define SPEED_MIN_ERPM                      800.0
+#define SPEED_ERPM_STEP                     200.0
+#define SPEED_PID_CHANGE                    2000
+#define MAX_ADC_VALUE_IN_VOLTS              3.22
 
 static THD_FUNCTION( speed_thread, arg );
 static THD_FUNCTION( encoder_thread, arg );
@@ -56,10 +60,10 @@ static THD_WORKING_AREA( encoder_thread_wa, 1024 );
 static bool speed_thread_running = false;
 static bool encoder_thread_running = false;
 
-volatile float encoder_max_value = 3.2;
+volatile float encoder_max_value_in_volts = 3.2;
 volatile float encoder_min_value_in_volts = 0.0;
 volatile float encoder_total_value_volts;
-volatile float main_switch_value;
+volatile float main_switch_value_in_volts;
 volatile float speed_erpm_setpoint = 0.0;
 volatile float knob_read_in_volts;
 volatile float encoder_min_calibrated_value;
@@ -84,7 +88,7 @@ static volatile bool is_erpm_done = false;
 static volatile bool is_pid_kd_change_up = false;
 static volatile bool is_pid_kd_change_down = false;
 static volatile bool is_momentary_position_status = false;
-static volatile bool store_minimum_value= false;
+static volatile bool store_minimum_value = false;
 static volatile bool is_encoder_done = false;
 
 bool is_default_erpm = true;
@@ -427,14 +431,14 @@ void encoder_calibrate_offset( void )
     eeprom_var offset_value, calibration_check;
 
     encoder_total_value_volts = ADC_VOLTS( ADC_IND_EXT );
-    main_switch_value = ADC_VOLTS( ADC_IND_EXT2 );
+    main_switch_value_in_volts = ADC_VOLTS( ADC_IND_EXT2 );
 
     if( !is_momentary_position() )
     {
         encoder_min_value_in_volts = encoder_total_value_volts;
         offset_value.as_float = encoder_min_value_in_volts;
         conf_general_store_eeprom_var_hw( &offset_value, EEPROM_ADDR_ENCODER_VALUE );
-        encoder_max_value = 3.2;
+        encoder_max_value_in_volts = MAX_ADC_VALUE_IN_VOLTS;
         is_calibration_done = 1;
         calibration_check.as_i32 = is_calibration_done;
         conf_general_store_eeprom_var_hw( &calibration_check, EEPROM_ADDR_CALIBRATION_CHECK );
@@ -476,7 +480,7 @@ void set_pid_constant( void )
     mc_configuration * mcconf_old = mempools_alloc_mcconf();
     *mcconf_old = *mcconf;
 
-    if( speed_erpm_setpoint < 2000 )
+    if( speed_erpm_setpoint < SPEED_PID_CHANGE )
     {
         mcconf->s_pid_kd = 0.000300; // for 7A it is set to kp: 0.000400
     }
@@ -652,7 +656,7 @@ static THD_FUNCTION( speed_thread, arg )
                 timeout_reset();
                 mc_interface_set_pid_speed( speed_erpm_setpoint );
 
-                if( mc_interface_get_tot_current() < NO_GRIND_CURRENT_AMPS)
+                if( mc_interface_get_tot_current() < NO_GRIND_CURRENT_AMPS )
                 {
                     if( no_grind_time_in_systicks == 0 )
                     {
@@ -807,7 +811,7 @@ static THD_FUNCTION( encoder_thread, arg )
 
             if( encoder_calibrated_value_in_volts < 0 )
             {
-                encoder_calibrated_value_in_volts += 3.22;
+                encoder_calibrated_value_in_volts += MAX_ADC_VALUE_IN_VOLTS;
             }
 
             if( store_minimum_value )
@@ -818,15 +822,15 @@ static THD_FUNCTION( encoder_thread, arg )
                 conf_general_store_eeprom_var_hw( &encoder_min_value_stored, EEPROM_ADDR_MIN_CALIBRATED_VALUE );
                 step_value_stored.as_float = steps;
                 conf_general_store_eeprom_var_hw( &step_value_stored, EEPROM_ADDR_STEPS_VALUE );
-                store_minimum_value= false;
+                store_minimum_value = false;
             }
 
             knob_index = roundf( ( ( encoder_calibrated_value_in_volts - encoder_min_calibrated_value ) / steps ) );
 
-            speed_erpm_setpoint = 800.0 + knob_index * 200.0;
+            speed_erpm_setpoint = SPEED_MIN_ERPM + knob_index * SPEED_ERPM_STEP;
         }
 
-        if( speed_erpm_setpoint >= 2000 )
+        if( speed_erpm_setpoint >= SPEED_PID_CHANGE )
         {
             if( !is_pid_kd_change_up )
             {
@@ -836,7 +840,7 @@ static THD_FUNCTION( encoder_thread, arg )
             }
         }
 
-        if( speed_erpm_setpoint < 2000 )
+        if( speed_erpm_setpoint < SPEED_PID_CHANGE )
         {
             if( !is_pid_kd_change_down )
             {
