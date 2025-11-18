@@ -799,10 +799,6 @@ static THD_FUNCTION( speed_thread, arg )
                 overload_time_in_systicks = SYSTICK_ZERO_VALUE;
             }
         }
-        else
-        {
-            // palClearPad(PFC_ENABLE_PORT, PFC_ENABLE_PIN); // if pfc is not ok, do nothing...
-        }
 
         chThdSleepMilliseconds( 100 );
     }
