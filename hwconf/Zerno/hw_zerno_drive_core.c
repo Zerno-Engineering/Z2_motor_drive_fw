@@ -105,8 +105,6 @@
 #define PIN_14                              ( 14 )
 #define PIN_15                              ( 15 )
 
-
-
 static THD_FUNCTION( speed_thread, arg );
 static THD_FUNCTION( encoder_thread, arg );
 
