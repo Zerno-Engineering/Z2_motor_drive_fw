@@ -517,7 +517,7 @@ void set_erpm_ramp_response( void )
     is_erpm_done = true;
 }
 
-void set_pid_constant( void )
+void set_pid_kd_constant( void )
 {
     mc_configuration * mcconf = mempools_alloc_mcconf();
 
@@ -879,7 +879,7 @@ static THD_FUNCTION( encoder_thread, arg )
         {
             if( !is_pid_kd_change_up )
             {
-                set_pid_constant();
+                set_pid_kd_constant();
                 is_pid_kd_change_up = true;
                 is_pid_kd_change_down = false;
             }
@@ -889,7 +889,7 @@ static THD_FUNCTION( encoder_thread, arg )
         {
             if( !is_pid_kd_change_down )
             {
-                set_pid_constant();
+                set_pid_kd_constant();
                 is_pid_kd_change_down = true;
                 is_pid_kd_change_up = false;
             }
