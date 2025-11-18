@@ -491,7 +491,7 @@ static void encoder_calibrate_offset( void )
     }
 }
 
-void set_erpm_ramp_response( void )
+static void set_erpm_ramp_response( void )
 {
     mc_configuration * mcconf = mempools_alloc_mcconf();
 
@@ -517,7 +517,7 @@ void set_erpm_ramp_response( void )
     is_erpm_done = true;
 }
 
-void set_pid_kd_constant( void )
+static void set_pid_kd_constant( void )
 {
     mc_configuration * mcconf = mempools_alloc_mcconf();
 
@@ -541,7 +541,7 @@ void set_pid_kd_constant( void )
     mempools_free_mcconf( mcconf_previous );
 }
 
-void encoder_cal_detection( void )
+static void encoder_cal_detection( void )
 {
     mc_configuration * mcconf = mempools_alloc_mcconf();
 
