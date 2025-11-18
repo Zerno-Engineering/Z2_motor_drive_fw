@@ -127,17 +127,18 @@ volatile float steps;
 
 static void adc_read_callback( void );
 
-int is_calibration_done = 0;
+static int is_calibration_done = 0;
 
 float get_pfc_temp( void );
-float encoder_calibrated_value_in_volts;
-float knob_index;
+static float encoder_calibrated_value_in_volts;
+static float knob_index;
 
 static void define_default_values( void );
 static void encoder_calibrate_offset( void );
 
-bool is_pfc_ok( void );
-bool motor_start = false;
+static bool is_pfc_ok( void );
+
+static bool motor_start = false;
 
 static volatile bool safety_calibration = false;
 static volatile bool is_erpm_done = false;
@@ -147,10 +148,10 @@ static volatile bool is_momentary_position_status = false;
 static volatile bool store_minimum_value = false;
 static volatile bool is_encoder_done = false;
 
-bool is_default_erpm = true;
-bool is_stop_state = false;
-bool is_motor_stalled_fault = false;
-bool is_motor_grinding_enable = true;
+static bool is_default_erpm = true;
+static bool is_stop_state = false;
+static bool is_motor_stalled_fault = false;
+static bool is_motor_grinding_enable = true;
 
 // Variables
 static volatile bool i2c_running = false;
@@ -428,7 +429,7 @@ bool is_sw_position( void )
     return ( bool ) palReadPad( HW_SW_PORT, HW_SW_PIN );
 }
 
-bool is_pfc_ok( void )
+static bool is_pfc_ok( void )
 {
     return ( bool ) palReadPad( PFC_STATUS_PORT, PFC_STATUS_PIN );
 }
@@ -584,7 +585,7 @@ bool is_hw_fault( void )
 
 static void adc_read_callback( void )
 {
-    float filter_knob = 0.0;
+    static float filter_knob = 0.0;
 
     filter_knob = ADC_VOLTS( ADC_IND_EXT );
 
@@ -669,7 +670,7 @@ static THD_FUNCTION( speed_thread, arg )
 
     chRegSetThreadName( "speed_pid" );
 
-    float switch_positions_in_volts;
+    static float switch_positions_in_volts;
     static systime_t overload_time_in_systicks = SYSTICK_ZERO_VALUE;
     static systime_t no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
     static int grind_attemp = ZERO_GRIND_ATTEMPS;
