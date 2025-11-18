@@ -580,7 +580,7 @@ bool is_hw_fault( void )
 
     //TODO: Add a custom fault here.
 
-    return( custom_fault );
+    return custom_fault;
 }
 
 static void adc_read_callback( void )
@@ -630,7 +630,7 @@ static void terminal_print_info( int argc,
 
 float get_knob_read( void )
 {
-    return( encoder_calibrated_value_in_volts );
+    return encoder_calibrated_value_in_volts;
 }
 
 static void terminal_motor_run( int argc,
