@@ -73,8 +73,8 @@
 #define CALIBRATION_CURRENT                 ( 2.0f )
 #define CALIBRATION_RATIO_VALUE             ( 0.0f )
 #define CALIBRATION_OFFSET_VALUE            ( 0.0f )
-#define SPEED_PID_KP_HIGH                   ( 0.0003f )
-#define SPEED_PID_KP_LOW                    ( 0.00002f )
+#define SPEED_PID_KD_HIGH                   ( 0.0003f )
+#define SPEED_PID_KD_LOW                    ( 0.00002f )
 #define SPEED_ERPM_RAMP_HIGH                ( 10000.0f )
 #define SPEED_ERPM_RAMP_LOW                 ( 8000.0f )
 #define SYSTICK_ZERO_VALUE                  ( 0.0f )
@@ -525,11 +525,11 @@ static void set_pid_kd_constant( void )
 
     if( speed_erpm_setpoint < SPEED_PID_CHANGE )
     {
-        mcconf->s_pid_kd = SPEED_PID_KP_HIGH; // for 7A it is set to kp: 0.000400
+        mcconf->s_pid_kd = SPEED_PID_KD_HIGH; // for 7A it is set to kp: 0.000400
     }
     else
     {
-        mcconf->s_pid_kd = SPEED_PID_KP_LOW;
+        mcconf->s_pid_kd = SPEED_PID_KD_LOW;
     }
 
     mc_interface_set_configuration( mcconf_previous );
