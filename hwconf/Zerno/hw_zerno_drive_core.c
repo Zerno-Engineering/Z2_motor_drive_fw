@@ -36,35 +36,91 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define EEPROM_ADDR_ENCODER_VALUE           2
-#define EEPROM_ADDR_CALIBRATION_CHECK       6
-#define EEPROM_ADDR_MIN_CALIBRATED_VALUE    8
-#define EEPROM_ADDR_STEPS_VALUE             10
-#define CURRENT_MOTOR_TIMEOUT_MS            250
-#define GRIND_TIMEOUT_SEC                   600
-#define CUTOFF_CURRENT_AMPS                 3.0
-#define NO_GRIND_CURRENT_AMPS               0.6
-#define GRIND_ATTEMPS                       1
-#define OFFSET_FACTOR_CORRECTION            0.05
-#define SPEED_MIN_ERPM                      800.0
-#define SPEED_ERPM_STEP                     200.0
-#define SPEED_PID_CHANGE                    2000
-#define MAX_ADC_VALUE_IN_VOLTS              3.22
+#define EEPROM_ADDR_ENCODER_VALUE           ( 2 )
+#define EEPROM_ADDR_CALIBRATION_CHECK       ( 6 )
+#define EEPROM_ADDR_MIN_CALIBRATED_VALUE    ( 8 )
+#define EEPROM_ADDR_STEPS_VALUE             ( 10 )
+#define CURRENT_MOTOR_TIMEOUT_MS            ( 250 )
+#define GRIND_TIMEOUT_SEC                   ( 600 )
+#define CUTOFF_CURRENT_AMPS                 ( 3.0f )
+#define NO_GRIND_CURRENT_AMPS               ( 0.6f )
+#define GRIND_ATTEMPS                       ( 1 )
+#define OFFSET_FACTOR_CORRECTION            ( 0.05f )
+#define SPEED_MIN_ERPM                      ( 800.0f )
+#define SPEED_ERPM_STEP                     ( 200.0f )
+#define SPEED_PID_CHANGE                    ( 2000 )
+#define MAX_ADC_VALUE_IN_VOLTS              ( 3.22f )
+#define MAX_ENCODER_VALUE_IN_VOLTS          ( 2.9f )
+#define THRESHOLD_VALUE                     ( 0.2f )
+#define DEFAULT_VALUE                       ( 0.0f )
+#define KNOB_STEPS                          ( 27 )
+#define SWITCH_STOP_POSITION                ( 2.8f )
+#define SWITCH_ON_POSITION_1                ( 1.2f )
+#define SWITCH_ON_POSITION_2                ( 1.6f )
+#define SWITCH_MOMENTARY_POSITION           ( 0.4f )
+#define SPEED_ERPM_MOMENTARY                ( 8000 )
+#define NTC_BETA_PARAMETER                  ( 3455.0f )
+#define NTC_RESISTANCE_VALUE                ( 10000 )
+#define NTC_TEMP_1_REL                      ( 1.0f / 298.15f )
+#define NTC_TEMP_2                          ( 273.15f )
+#define UNIT_CONSTANT                       ( 1.0f )
+#define TEMP_FILTER_CONSTANT                ( 0.1f )
+#define ADC_FILTER_CONSTANT                 ( 0.01f )
+#define SWITCH_FILTER_CONSTANT              ( 0.1f )
+#define ZERO_VECTOR_FREQ                    ( 10000.0f )
+#define FOC_KP_CONSTANT                     ( 0.01f )
+#define FOC_KI_CONSTANT                     ( 10.0f )
+#define CALIBRATION_CURRENT                 ( 2.0f )
+#define CALIBRATION_RATIO_VALUE             ( 0.0f )
+#define CALIBRATION_OFFSET_VALUE            ( 0.0f )
+#define SPEED_PID_KP_HIGH                   ( 0.0003f )
+#define SPEED_PID_KP_LOW                    ( 0.00002f )
+#define SPEED_ERPM_RAMP_HIGH                ( 10000.0f )
+#define SPEED_ERPM_RAMP_LOW                 ( 8000.0f )
+#define SYSTICK_ZERO_VALUE                  ( 0.0f )
+#define ZERO_GRIND_ATTEMPS                  ( 0 )
+#define SPEED_THREAD_STACK_SIZE             ( 1024 )
+#define ENCODER_THREAD_STACK_SIZE           ( 1024 )
+#define SAMPLES                             ( 15 )
+#define ADC_RANK_SEQUENCER_1                ( 1 )
+#define ADC_RANK_SEQUENCER_2                ( 2 )
+#define ADC_RANK_SEQUENCER_3                ( 3 )
+#define ADC_RANK_SEQUENCER_4                ( 4 )
+#define ADC_RANK_SEQUENCER_5                ( 5 )
+#define ADC_RANK_SEQUENCER_6                ( 6 )
+#define PIN_0                               ( 0 )
+#define PIN_1                               ( 1 )
+#define PIN_2                               ( 2 )
+#define PIN_3                               ( 3 )
+#define PIN_4                               ( 4 )
+#define PIN_5                               ( 5 )
+#define PIN_6                               ( 6 )
+#define PIN_7                               ( 7 )
+#define PIN_8                               ( 8 )
+#define PIN_9                               ( 9 )
+#define PIN_10                              ( 10 )
+#define PIN_11                              ( 11 )
+#define PIN_12                              ( 12 )
+#define PIN_13                              ( 13 )
+#define PIN_14                              ( 14 )
+#define PIN_15                              ( 15 )
+
+
 
 static THD_FUNCTION( speed_thread, arg );
 static THD_FUNCTION( encoder_thread, arg );
 
-static THD_WORKING_AREA( speed_thread_wa, 1024 );
-static THD_WORKING_AREA( encoder_thread_wa, 1024 );
+static THD_WORKING_AREA( speed_thread_wa, SPEED_THREAD_STACK_SIZE );
+static THD_WORKING_AREA( encoder_thread_wa, ENCODER_THREAD_STACK_SIZE );
 
 static bool speed_thread_running = false;
 static bool encoder_thread_running = false;
 
-volatile float encoder_max_value_in_volts = 3.2;
-volatile float encoder_min_value_in_volts = 0.0;
+volatile float encoder_max_value_in_volts = MAX_ADC_VALUE_IN_VOLTS;
+volatile float encoder_min_value_in_volts;
 volatile float encoder_total_value_volts;
 volatile float main_switch_value_in_volts;
-volatile float speed_erpm_setpoint = 0.0;
+volatile float speed_erpm_setpoint;
 volatile float knob_read_in_volts;
 volatile float encoder_min_calibrated_value;
 volatile float steps;
@@ -130,23 +186,23 @@ void hw_init_gpio( void )
                    PAL_STM32_OSPEED_HIGHEST );
 
     // GPIOA Configuration: Channel 1 to 3 as alternate function push-pull
-    palSetPadMode( GPIOA, 8, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
+    palSetPadMode( GPIOA, PIN_8, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
                    PAL_STM32_OSPEED_HIGHEST |
                    PAL_STM32_PUDR_FLOATING );
-    palSetPadMode( GPIOA, 9, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
+    palSetPadMode( GPIOA, PIN_9, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
                    PAL_STM32_OSPEED_HIGHEST |
                    PAL_STM32_PUDR_FLOATING );
-    palSetPadMode( GPIOA, 10, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
+    palSetPadMode( GPIOA, PIN_10, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
                    PAL_STM32_OSPEED_HIGHEST |
                    PAL_STM32_PUDR_FLOATING );
 
-    palSetPadMode( GPIOB, 13, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
+    palSetPadMode( GPIOB, PIN_13, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
                    PAL_STM32_OSPEED_HIGHEST |
                    PAL_STM32_PUDR_FLOATING );
-    palSetPadMode( GPIOB, 14, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
+    palSetPadMode( GPIOB, PIN_14, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
                    PAL_STM32_OSPEED_HIGHEST |
                    PAL_STM32_PUDR_FLOATING );
-    palSetPadMode( GPIOB, 15, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
+    palSetPadMode( GPIOB, PIN_15, PAL_MODE_ALTERNATE( GPIO_AF_TIM1 ) |
                    PAL_STM32_OSPEED_HIGHEST |
                    PAL_STM32_PUDR_FLOATING );
 
@@ -169,12 +225,12 @@ void hw_init_gpio( void )
                    PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST );
 
     // ADC Pins
-    palSetPadMode( GPIOA, 0, PAL_MODE_INPUT_ANALOG );
-    palSetPadMode( GPIOA, 1, PAL_MODE_INPUT_ANALOG );
-    palSetPadMode( GPIOA, 2, PAL_MODE_INPUT_ANALOG );
-    palSetPadMode( GPIOA, 3, PAL_MODE_INPUT_ANALOG );
-    palSetPadMode( GPIOA, 5, PAL_MODE_INPUT_ANALOG );
-    palSetPadMode( GPIOA, 6, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOA, PIN_0, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOA, PIN_1, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOA, PIN_2, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOA, PIN_3, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOA, PIN_5, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOA, PIN_6, PAL_MODE_INPUT_ANALOG );
 
     // Switch input pins
     palSetPadMode( HW_SW_PORT, HW_SW_PIN, PAL_MODE_INPUT_PULLUP );
@@ -186,13 +242,13 @@ void hw_init_gpio( void )
 
     palSetPadMode( GPIOB, 1, PAL_MODE_INPUT_ANALOG );
 
-    palSetPadMode( GPIOC, 0, PAL_MODE_INPUT_ANALOG );
-    palSetPadMode( GPIOC, 1, PAL_MODE_INPUT_ANALOG );
-    palSetPadMode( GPIOC, 2, PAL_MODE_INPUT_ANALOG );
-    palSetPadMode( GPIOC, 3, PAL_MODE_INPUT_ANALOG );
-    palSetPadMode( GPIOC, 4, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOC, PIN_0, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOC, PIN_1, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOC, PIN_2, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOC, PIN_3, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOC, PIN_4, PAL_MODE_INPUT_ANALOG );
 
-    palSetPadMode( GPIOA, 4, PAL_MODE_INPUT_ANALOG );
+    palSetPadMode( GPIOA, PIN_4, PAL_MODE_INPUT_ANALOG );
 
     mc_interface_set_pwm_callback( adc_read_callback );
 
@@ -228,38 +284,38 @@ void hw_init_gpio( void )
 void hw_setup_adc_channels( void )
 {
     // ADC1 regular channels														// index
-    ADC_RegularChannelConfig( ADC1, ADC_Channel_10, 1, ADC_SampleTime_15Cycles );      // 0
-    ADC_RegularChannelConfig( ADC1, ADC_Channel_0, 2, ADC_SampleTime_15Cycles );       // 3
-    ADC_RegularChannelConfig( ADC1, ADC_Channel_5, 3, ADC_SampleTime_15Cycles );       // 6
-    ADC_RegularChannelConfig( ADC1, ADC_Channel_14, 4, ADC_SampleTime_15Cycles );      // 9 TEMP MOTOR
-    ADC_RegularChannelConfig( ADC1, ADC_Channel_Vrefint, 5, ADC_SampleTime_15Cycles ); // 12
-    ADC_RegularChannelConfig( ADC1, ADC_Channel_4, 6, ADC_SampleTime_15Cycles );       // 15 PA4 PFC temperature.
+    ADC_RegularChannelConfig( ADC1, ADC_Channel_10, ADC_RANK_SEQUENCER_1, ADC_SampleTime_15Cycles );      // 0
+    ADC_RegularChannelConfig( ADC1, ADC_Channel_0, ADC_RANK_SEQUENCER_2, ADC_SampleTime_15Cycles );       // 3
+    ADC_RegularChannelConfig( ADC1, ADC_Channel_5, ADC_RANK_SEQUENCER_3, ADC_SampleTime_15Cycles );       // 6
+    ADC_RegularChannelConfig( ADC1, ADC_Channel_14, ADC_RANK_SEQUENCER_4, ADC_SampleTime_15Cycles );      // 9 TEMP MOTOR
+    ADC_RegularChannelConfig( ADC1, ADC_Channel_Vrefint, ADC_RANK_SEQUENCER_5, ADC_SampleTime_15Cycles ); // 12
+    ADC_RegularChannelConfig( ADC1, ADC_Channel_4, ADC_RANK_SEQUENCER_6, ADC_SampleTime_15Cycles );       // 15 PA4 PFC temperature.
 
     // ADC2 regular channels
-    ADC_RegularChannelConfig( ADC2, ADC_Channel_11, 1, ADC_SampleTime_15Cycles ); // 1
-    ADC_RegularChannelConfig( ADC2, ADC_Channel_1, 2, ADC_SampleTime_15Cycles );  // 4
-    ADC_RegularChannelConfig( ADC2, ADC_Channel_6, 3, ADC_SampleTime_15Cycles );  // 7
-    ADC_RegularChannelConfig( ADC2, ADC_Channel_0, 5, ADC_SampleTime_15Cycles );  // 13
-    ADC_RegularChannelConfig( ADC2, ADC_Channel_9, 6, ADC_SampleTime_15Cycles );  // 16
+    ADC_RegularChannelConfig( ADC2, ADC_Channel_11, ADC_RANK_SEQUENCER_1, ADC_SampleTime_15Cycles ); // 1
+    ADC_RegularChannelConfig( ADC2, ADC_Channel_1, ADC_RANK_SEQUENCER_2, ADC_SampleTime_15Cycles );  // 4
+    ADC_RegularChannelConfig( ADC2, ADC_Channel_6, ADC_RANK_SEQUENCER_3, ADC_SampleTime_15Cycles );  // 7
+    ADC_RegularChannelConfig( ADC2, ADC_Channel_0, ADC_RANK_SEQUENCER_5, ADC_SampleTime_15Cycles );  // 13
+    ADC_RegularChannelConfig( ADC2, ADC_Channel_9, ADC_RANK_SEQUENCER_6, ADC_SampleTime_15Cycles );  // 16
 
     // ADC3 regular channels
-    ADC_RegularChannelConfig( ADC3, ADC_Channel_12, 1, ADC_SampleTime_15Cycles ); // 2
-    ADC_RegularChannelConfig( ADC3, ADC_Channel_2, 2, ADC_SampleTime_15Cycles );  // 5
-    ADC_RegularChannelConfig( ADC3, ADC_Channel_3, 3, ADC_SampleTime_15Cycles );  // 8
-    ADC_RegularChannelConfig( ADC3, ADC_Channel_13, 4, ADC_SampleTime_15Cycles ); //11
-    ADC_RegularChannelConfig( ADC3, ADC_Channel_1, 5, ADC_SampleTime_15Cycles );  // 15
-    ADC_RegularChannelConfig( ADC3, ADC_Channel_2, 6, ADC_SampleTime_15Cycles );  // 17
+    ADC_RegularChannelConfig( ADC3, ADC_Channel_12, ADC_RANK_SEQUENCER_1, ADC_SampleTime_15Cycles ); // 2
+    ADC_RegularChannelConfig( ADC3, ADC_Channel_2, ADC_RANK_SEQUENCER_2, ADC_SampleTime_15Cycles );  // 5
+    ADC_RegularChannelConfig( ADC3, ADC_Channel_3, ADC_RANK_SEQUENCER_3, ADC_SampleTime_15Cycles );  // 8
+    ADC_RegularChannelConfig( ADC3, ADC_Channel_13, ADC_RANK_SEQUENCER_4, ADC_SampleTime_15Cycles ); //11
+    ADC_RegularChannelConfig( ADC3, ADC_Channel_1, ADC_RANK_SEQUENCER_5, ADC_SampleTime_15Cycles );  // 15
+    ADC_RegularChannelConfig( ADC3, ADC_Channel_2, ADC_RANK_SEQUENCER_6, ADC_SampleTime_15Cycles );  // 17
 
     // Injected channels
-    ADC_InjectedChannelConfig( ADC1, ADC_Channel_10, 1, ADC_SampleTime_15Cycles );
-    ADC_InjectedChannelConfig( ADC2, ADC_Channel_11, 1, ADC_SampleTime_15Cycles );
-    ADC_InjectedChannelConfig( ADC3, ADC_Channel_12, 1, ADC_SampleTime_15Cycles );
-    ADC_InjectedChannelConfig( ADC1, ADC_Channel_10, 2, ADC_SampleTime_15Cycles );
-    ADC_InjectedChannelConfig( ADC2, ADC_Channel_11, 2, ADC_SampleTime_15Cycles );
-    ADC_InjectedChannelConfig( ADC3, ADC_Channel_12, 2, ADC_SampleTime_15Cycles );
-    ADC_InjectedChannelConfig( ADC1, ADC_Channel_10, 3, ADC_SampleTime_15Cycles );
-    ADC_InjectedChannelConfig( ADC2, ADC_Channel_11, 3, ADC_SampleTime_15Cycles );
-    ADC_InjectedChannelConfig( ADC3, ADC_Channel_12, 3, ADC_SampleTime_15Cycles );
+    ADC_InjectedChannelConfig( ADC1, ADC_Channel_10, ADC_RANK_SEQUENCER_1, ADC_SampleTime_15Cycles );
+    ADC_InjectedChannelConfig( ADC2, ADC_Channel_11, ADC_RANK_SEQUENCER_1, ADC_SampleTime_15Cycles );
+    ADC_InjectedChannelConfig( ADC3, ADC_Channel_12, ADC_RANK_SEQUENCER_1, ADC_SampleTime_15Cycles );
+    ADC_InjectedChannelConfig( ADC1, ADC_Channel_10, ADC_RANK_SEQUENCER_2, ADC_SampleTime_15Cycles );
+    ADC_InjectedChannelConfig( ADC2, ADC_Channel_11, ADC_RANK_SEQUENCER_2, ADC_SampleTime_15Cycles );
+    ADC_InjectedChannelConfig( ADC3, ADC_Channel_12, ADC_RANK_SEQUENCER_2, ADC_SampleTime_15Cycles );
+    ADC_InjectedChannelConfig( ADC1, ADC_Channel_10, ADC_RANK_SEQUENCER_3, ADC_SampleTime_15Cycles );
+    ADC_InjectedChannelConfig( ADC2, ADC_Channel_11, ADC_RANK_SEQUENCER_3, ADC_SampleTime_15Cycles );
+    ADC_InjectedChannelConfig( ADC3, ADC_Channel_12, ADC_RANK_SEQUENCER_3, ADC_SampleTime_15Cycles );
 }
 
 void hw_start_i2c( void )
@@ -381,11 +437,11 @@ bool is_pfc_ok( void )
 
 float main_switch_adc_value( void )
 {
-    static float main_switch = 0.0;
-    static float main_switch_filtered = 0.0;
+    static float main_switch;
+    static float main_switch_filtered;
 
     main_switch = ADC_VOLTS( ADC_IND_EXT2 );
-    UTILS_LP_FAST( main_switch_filtered, main_switch, 0.1 );
+    UTILS_LP_FAST( main_switch_filtered, main_switch, SWITCH_FILTER_CONSTANT );
 
     return main_switch_filtered;
 }
@@ -444,11 +500,11 @@ void set_erpm_ramp_response( void )
 
     if( !is_default_erpm )
     {
-        mcconf->s_pid_ramp_erpms_s = 10000.0;
+        mcconf->s_pid_ramp_erpms_s = SPEED_ERPM_RAMP_HIGH;
     }
     else
     {
-        mcconf->s_pid_ramp_erpms_s = 8000.0;
+        mcconf->s_pid_ramp_erpms_s = SPEED_ERPM_RAMP_LOW;
     }
 
     mc_interface_set_configuration( mcconf_old );
@@ -470,11 +526,11 @@ void set_pid_constant( void )
 
     if( speed_erpm_setpoint < SPEED_PID_CHANGE )
     {
-        mcconf->s_pid_kd = 0.000300; // for 7A it is set to kp: 0.000400
+        mcconf->s_pid_kd = SPEED_PID_KP_HIGH; // for 7A it is set to kp: 0.000400
     }
     else
     {
-        mcconf->s_pid_kd = 0.000020;
+        mcconf->s_pid_kd = SPEED_PID_KP_LOW;
     }
 
     mc_interface_set_configuration( mcconf_old );
@@ -493,14 +549,14 @@ void encoder_cal_detection( void )
     *mcconf_old = *mcconf;
 
     mcconf->motor_type = MOTOR_TYPE_FOC;
-    mcconf->foc_f_zv = 10000.0;
-    mcconf->foc_current_kp = 0.01;
-    mcconf->foc_current_ki = 10.0;
+    mcconf->foc_f_zv = ZERO_VECTOR_FREQ;
+    mcconf->foc_current_kp = FOC_KP_CONSTANT;
+    mcconf->foc_current_ki = FOC_KI_CONSTANT;
     mc_interface_set_configuration( mcconf );
 
-    float current = 2.0;
-    float offset = 0.0;
-    float ratio = 0.0;
+    float current = CALIBRATION_CURRENT;
+    float offset = CALIBRATION_OFFSET_VALUE;
+    float ratio = CALIBRATION_RATIO_VALUE;
     bool inverted = false;
 
     mcpwm_foc_encoder_detect( current, false, &offset, &ratio, &inverted );
@@ -532,16 +588,16 @@ static void adc_read_callback( void )
 
     filter_knob = ADC_VOLTS( ADC_IND_EXT );
 
-    UTILS_LP_FAST( knob_read_in_volts, filter_knob, 0.01 );
+    UTILS_LP_FAST( knob_read_in_volts, filter_knob, ADC_FILTER_CONSTANT );
 }
 
 float get_pfc_temp( void )
 {
     static float temp_pfc_filtered = 0.0;
 
-    float temp_pfc = ( 1.0 / ( ( logf( NTC_RES( ADC_Value[ ADC_IND_TEMP_PFC ] ) / 10000.0 ) / 3455.0 ) + ( 1.0 / 298.15 ) ) - 273.15 );
+    float temp_pfc = ( UNIT_CONSTANT / ( ( logf( NTC_RES( ADC_Value[ ADC_IND_TEMP_PFC ] ) / NTC_RESISTANCE_VALUE ) / NTC_BETA_PARAMETER ) + NTC_TEMP_1_REL ) - NTC_TEMP_2 );
 
-    UTILS_LP_FAST( temp_pfc_filtered, temp_pfc, 0.1 );
+    UTILS_LP_FAST( temp_pfc_filtered, temp_pfc, TEMP_FILTER_CONSTANT );
     return temp_pfc_filtered;
 }
 
@@ -613,10 +669,10 @@ static THD_FUNCTION( speed_thread, arg )
 
     chRegSetThreadName( "speed_pid" );
 
-    float switch_positions_in_volts = 0.0;
-    static systime_t overload_time_in_systicks = 0;
-    static systime_t no_grind_time_in_systicks = 0;
-    static int grind_attemp = 0;
+    float switch_positions_in_volts;
+    static systime_t overload_time_in_systicks = SYSTICK_ZERO_VALUE;
+    static systime_t no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
+    static int grind_attemp = ZERO_GRIND_ATTEMPS;
 
     for( ; ; )
     {
@@ -627,7 +683,7 @@ static THD_FUNCTION( speed_thread, arg )
         {
             palSetPad( PFC_ENABLE_PORT, PFC_ENABLE_PIN );
 
-            if( switch_positions_in_volts > 2.8 )
+            if( switch_positions_in_volts > SWITCH_STOP_POSITION )
             {
                 if( is_stop_state )
                 {
@@ -636,18 +692,18 @@ static THD_FUNCTION( speed_thread, arg )
                     is_momentary_position_status = false;
                     is_motor_stalled_fault = false;
                     is_motor_grinding_enable = true;
-                    no_grind_time_in_systicks = 0;
+                    no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
                 }
             }
 
-            if( ( switch_positions_in_volts > 1.2 ) && ( switch_positions_in_volts < 1.6 ) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable )
+            if( ( switch_positions_in_volts > SWITCH_ON_POSITION_1 ) && ( switch_positions_in_volts < SWITCH_ON_POSITION_2 ) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable )
             {
                 timeout_reset();
                 mc_interface_set_pid_speed( speed_erpm_setpoint );
 
                 if( mc_interface_get_tot_current() < NO_GRIND_CURRENT_AMPS )
                 {
-                    if( no_grind_time_in_systicks == 0 )
+                    if( no_grind_time_in_systicks == SYSTICK_ZERO_VALUE )
                     {
                         no_grind_time_in_systicks = chVTGetSystemTime();
                     }
@@ -657,19 +713,19 @@ static THD_FUNCTION( speed_thread, arg )
                         {
                             mc_interface_release_motor();
                             is_motor_grinding_enable = false;
-                            no_grind_time_in_systicks = 0;
+                            no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
                         }
                     }
                 }
                 else
                 {
-                    no_grind_time_in_systicks = 0;
+                    no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
                 }
 
                 is_stop_state = true;
             }
 
-            if( ( switch_positions_in_volts < 0.4 ) && is_calibration_done )
+            if( ( switch_positions_in_volts < SWITCH_MOMENTARY_POSITION ) && is_calibration_done )
             {
                 if( !safety_calibration )
                 {
@@ -679,7 +735,7 @@ static THD_FUNCTION( speed_thread, arg )
                         set_erpm_ramp_response();
                     }
 
-                    speed_erpm_setpoint = 8000;
+                    speed_erpm_setpoint = SPEED_ERPM_MOMENTARY;
                     is_momentary_position_status = true;
                     timeout_reset();
                     mc_interface_set_pid_speed( speed_erpm_setpoint );
@@ -697,7 +753,7 @@ static THD_FUNCTION( speed_thread, arg )
                         is_default_erpm = true;
                         set_erpm_ramp_response();
                         encoder_calibrate_offset();
-                        encoder_cal_detection();
+                        //encoder_cal_detection();
                         store_minimum_value = true;
                     }
                 }
@@ -717,7 +773,7 @@ static THD_FUNCTION( speed_thread, arg )
 
             if( mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS )
             {
-                if( overload_time_in_systicks == 0 )
+                if( overload_time_in_systicks == SYSTICK_ZERO_VALUE )
                 {
                     overload_time_in_systicks = chVTGetSystemTime();
                 }
@@ -731,17 +787,17 @@ static THD_FUNCTION( speed_thread, arg )
                         if( grind_attemp == GRIND_ATTEMPS )
                         {
                             is_motor_stalled_fault = true;
-                            grind_attemp = 0;
+                            grind_attemp = ZERO_GRIND_ATTEMPS;
                         }
 
                         chThdSleepMilliseconds( 2000 );
-                        overload_time_in_systicks = 0;
+                        overload_time_in_systicks = SYSTICK_ZERO_VALUE;
                     }
                 }
             }
             else
             {
-                overload_time_in_systicks = 0;
+                overload_time_in_systicks = SYSTICK_ZERO_VALUE;
             }
         }
         else
@@ -764,31 +820,31 @@ static THD_FUNCTION( encoder_thread, arg )
     eeprom_var encoder_min_value_stored;
     eeprom_var step_value_stored;
 
-    const float encoder_max_calibrated_value = 2.9;
+    const float encoder_max_calibrated_value = MAX_ENCODER_VALUE_IN_VOLTS;
 
     for( ; ; )
     {
-        float sample_volts[ 15 ];
+        float sample_volts[ SAMPLES ];
         float diff;
-        float get_encoder_sample_in_volts = 0.0;
+        float get_encoder_sample_in_volts;
 
         if( !is_momentary_position_status )
         {
-            for( int i = 0; i < 15; i++ )
+            for( int i = 0; i < SAMPLES; i++ )
             {
                 sample_volts[ i ] = knob_read_in_volts;
                 chThdSleepMilliseconds( 10 );
             }
 
-            for( int i = 0; i < 15; i++ )
+            for( int i = 0; i < SAMPLES; i++ )
             {
                 if( i != 0 )
                 {
                     diff = fabs( sample_volts[ i ] - sample_volts[ i - 1 ] );
 
-                    if( diff > 0.2 )
+                    if( diff > THRESHOLD_VALUE )
                     {
-                        get_encoder_sample_in_volts = 0.0;
+                        get_encoder_sample_in_volts = DEFAULT_VALUE;
                     }
                     else
                     {
@@ -799,7 +855,7 @@ static THD_FUNCTION( encoder_thread, arg )
 
             encoder_calibrated_value_in_volts = ( encoder_min_value_in_volts - get_encoder_sample_in_volts );
 
-            if( encoder_calibrated_value_in_volts < 0 )
+            if( encoder_calibrated_value_in_volts < 0.0 )
             {
                 encoder_calibrated_value_in_volts += MAX_ADC_VALUE_IN_VOLTS;
             }
@@ -807,7 +863,7 @@ static THD_FUNCTION( encoder_thread, arg )
             if( store_minimum_value )
             {
                 encoder_min_calibrated_value = encoder_calibrated_value_in_volts;
-                steps = ( encoder_max_calibrated_value - encoder_min_calibrated_value ) / 27;
+                steps = ( encoder_max_calibrated_value - encoder_min_calibrated_value ) / KNOB_STEPS;
                 encoder_min_value_stored.as_float = encoder_min_calibrated_value;
                 conf_general_store_eeprom_var_hw( &encoder_min_value_stored, EEPROM_ADDR_MIN_CALIBRATED_VALUE );
                 step_value_stored.as_float = steps;
