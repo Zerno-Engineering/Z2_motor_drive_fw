@@ -111,7 +111,6 @@ static THD_FUNCTION( encoder_thread, arg );
 static THD_WORKING_AREA( speed_thread_wa, SPEED_THREAD_STACK_SIZE );
 static THD_WORKING_AREA( encoder_thread_wa, ENCODER_THREAD_STACK_SIZE );
 
-volatile float encoder_max_value_in_volts = MAX_ADC_VALUE_IN_VOLTS;
 volatile float encoder_min_value_in_volts;
 volatile float encoder_total_value_volts;
 volatile float main_switch_value_in_volts;
@@ -460,7 +459,6 @@ static void encoder_calibrate_offset( void )
         encoder_min_value_in_volts = encoder_total_value_volts;
         offset_value.as_float = encoder_min_value_in_volts;
         conf_general_store_eeprom_var_hw( &offset_value, EEPROM_ADDR_ENCODER_VALUE );
-        encoder_max_value_in_volts = MAX_ADC_VALUE_IN_VOLTS;
         is_calibration_done = 1;
         calibration_check.as_i32 = is_calibration_done;
         conf_general_store_eeprom_var_hw( &calibration_check, EEPROM_ADDR_CALIBRATION_CHECK );
