@@ -496,8 +496,8 @@ void set_erpm_ramp_response( void )
     mc_configuration * mcconf = mempools_alloc_mcconf();
 
     *mcconf = *mc_interface_get_configuration();
-    mc_configuration * mcconf_old = mempools_alloc_mcconf();
-    *mcconf_old = *mcconf;
+    mc_configuration * mcconf_previous = mempools_alloc_mcconf();
+    *mcconf_previous = *mcconf;
 
     if( !is_default_erpm )
     {
@@ -508,11 +508,11 @@ void set_erpm_ramp_response( void )
         mcconf->s_pid_ramp_erpms_s = SPEED_ERPM_RAMP_LOW;
     }
 
-    mc_interface_set_configuration( mcconf_old );
+    mc_interface_set_configuration( mcconf_previous );
     mc_interface_set_configuration( mcconf );
 
     mempools_free_mcconf( mcconf );
-    mempools_free_mcconf( mcconf_old );
+    mempools_free_mcconf( mcconf_previous );
 
     is_erpm_done = true;
 }
@@ -522,8 +522,8 @@ void set_pid_constant( void )
     mc_configuration * mcconf = mempools_alloc_mcconf();
 
     *mcconf = *mc_interface_get_configuration();
-    mc_configuration * mcconf_old = mempools_alloc_mcconf();
-    *mcconf_old = *mcconf;
+    mc_configuration * mcconf_previous = mempools_alloc_mcconf();
+    *mcconf_previous = *mcconf;
 
     if( speed_erpm_setpoint < SPEED_PID_CHANGE )
     {
@@ -534,11 +534,11 @@ void set_pid_constant( void )
         mcconf->s_pid_kd = SPEED_PID_KP_LOW;
     }
 
-    mc_interface_set_configuration( mcconf_old );
+    mc_interface_set_configuration( mcconf_previous );
     mc_interface_set_configuration( mcconf );
 
     mempools_free_mcconf( mcconf );
-    mempools_free_mcconf( mcconf_old );
+    mempools_free_mcconf( mcconf_previous );
 }
 
 void encoder_cal_detection( void )
@@ -546,8 +546,8 @@ void encoder_cal_detection( void )
     mc_configuration * mcconf = mempools_alloc_mcconf();
 
     *mcconf = *mc_interface_get_configuration();
-    mc_configuration * mcconf_old = mempools_alloc_mcconf();
-    *mcconf_old = *mcconf;
+    mc_configuration * mcconf_previous = mempools_alloc_mcconf();
+    *mcconf_previous = *mcconf;
 
     mcconf->motor_type = MOTOR_TYPE_FOC;
     mcconf->foc_f_zv = ZERO_VECTOR_FREQ;
@@ -562,14 +562,14 @@ void encoder_cal_detection( void )
 
     mcpwm_foc_encoder_detect( current, false, &offset, &ratio, &inverted );
 
-    mcconf_old->foc_encoder_offset = offset;
+    mcconf_previous->foc_encoder_offset = offset;
     mcconf->foc_encoder_offset = offset;
 
     mc_interface_set_configuration( mcconf );
-    mc_interface_set_configuration( mcconf_old );
+    mc_interface_set_configuration( mcconf_previous );
 
     mempools_free_mcconf( mcconf );
-    mempools_free_mcconf( mcconf_old );
+    mempools_free_mcconf( mcconf_previous );
 
     is_encoder_done = true;
 }
