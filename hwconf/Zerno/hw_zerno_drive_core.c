@@ -136,8 +136,6 @@ static void encoder_calibrate_offset( void );
 
 static bool is_pfc_ok( void );
 
-static bool motor_start = false;
-
 static volatile bool safety_calibration = false;
 static volatile bool is_erpm_done = false;
 static volatile bool is_pid_kd_change_up = false;
@@ -165,8 +163,6 @@ static const I2CConfig i2cfg =
 // Private functions
 static void terminal_print_info( int argc,
                                  const char ** argv );
-static void terminal_motor_run( int argc,
-                                const char ** argv );
 
 void hw_init_gpio( void )
 {
@@ -272,12 +268,6 @@ void hw_init_gpio( void )
         "Value",
         0,
         terminal_print_info );
-
-    terminal_register_command_callback(
-        "motor_state",
-        "on/off",
-        0,
-        terminal_motor_run );
 }
 
 void hw_setup_adc_channels( void )
@@ -629,36 +619,6 @@ static void terminal_print_info( int argc,
 float get_knob_read( void )
 {
     return encoder_calibrated_value_in_volts;
-}
-
-static void terminal_motor_run( int argc,
-                                const char ** argv )
-{
-    ( void ) argc;
-    ( void ) argv;
-
-    if( strcmp( argv[ 1 ], "ON" ) == 0 )
-    {
-        commands_printf( "Motor ON" );
-        motor_start = true;
-        encoder_cal_detection();
-    }
-
-    if( strcmp( argv[ 1 ], "OFF" ) == 0 )
-    {
-        commands_printf( "Motor OFF" );
-        motor_start = false;
-    }
-
-    if( motor_start )
-    {
-        commands_printf( "Running..." );
-    }
-
-    else
-    {
-        commands_printf( "Stop..." );
-    }
 }
 
 /* Thread to read encoder function and switch position */
