@@ -111,9 +111,6 @@ static THD_FUNCTION( encoder_thread, arg );
 static THD_WORKING_AREA( speed_thread_wa, SPEED_THREAD_STACK_SIZE );
 static THD_WORKING_AREA( encoder_thread_wa, ENCODER_THREAD_STACK_SIZE );
 
-static bool speed_thread_running = false;
-static bool encoder_thread_running = false;
-
 volatile float encoder_max_value_in_volts = MAX_ADC_VALUE_IN_VOLTS;
 volatile float encoder_min_value_in_volts;
 volatile float encoder_total_value_volts;
@@ -251,17 +248,9 @@ void hw_init_gpio( void )
 
     encoder_calibrate_offset();
 
-    if( !speed_thread_running )
-    {
-        chThdCreateStatic( speed_thread_wa, sizeof( speed_thread_wa ), NORMALPRIO, speed_thread, NULL );
-        speed_thread_running = true;
-    }
+    chThdCreateStatic( speed_thread_wa, sizeof( speed_thread_wa ), NORMALPRIO, speed_thread, NULL );
 
-    if( !encoder_thread_running )
-    {
-        chThdCreateStatic( encoder_thread_wa, sizeof( encoder_thread_wa ), NORMALPRIO, encoder_thread, NULL );
-        encoder_thread_running = true;
-    }
+    chThdCreateStatic( encoder_thread_wa, sizeof( encoder_thread_wa ), NORMALPRIO, encoder_thread, NULL );
 
     terminal_register_command_callback(
         "encoder_status",
