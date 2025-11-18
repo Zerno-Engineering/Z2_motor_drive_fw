@@ -712,7 +712,7 @@ static THD_FUNCTION( speed_thread, arg )
                         is_default_erpm = true;
                         set_erpm_ramp_response();
                         encoder_calibrate_offset();
-                        //encoder_cal_detection();
+                        encoder_cal_detection();
                         store_minimum_value = true;
                     }
                 }
