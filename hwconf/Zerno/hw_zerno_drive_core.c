@@ -121,7 +121,7 @@ volatile float steps;
 
 static void adc_read_callback( void );
 
-static int is_calibration_done = 0;
+static uint8_t is_calibration_done = 0;
 
 float get_pfc_temp( void );
 static float encoder_calibrated_value_in_volts;
@@ -359,7 +359,7 @@ void hw_try_restore_i2c( void )
 
         chThdSleep( 1 );
 
-        for( int i = 0; i < 16; i++ )
+        for( uint8_t i = 0; i < 16; i++ )
         {
             palClearPad( HW_I2C_SCL_PORT, HW_I2C_SCL_PIN );
             chThdSleep( 1 );
@@ -618,7 +618,7 @@ static THD_FUNCTION( speed_thread, arg )
     static float switch_positions_in_volts;
     static systime_t overload_time_in_systicks = SYSTICK_ZERO_VALUE;
     static systime_t no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
-    static int grind_attemp = ZERO_GRIND_ATTEMPS;
+    static uint8_t grind_attemp = ZERO_GRIND_ATTEMPS;
 
     for( ; ; )
     {
@@ -770,13 +770,13 @@ static THD_FUNCTION( encoder_thread, arg )
 
         if( !is_momentary_position_status )
         {
-            for( int i = 0; i < SAMPLES; i++ )
+            for( uint8_t i = 0; i < SAMPLES; i++ )
             {
                 sample_volts[ i ] = knob_read_in_volts;
                 chThdSleepMilliseconds( 10 );
             }
 
-            for( int i = 0; i < SAMPLES; i++ )
+            for( uint8_t i = 0; i < SAMPLES; i++ )
             {
                 if( i != 0 )
                 {
