@@ -36,74 +36,74 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define EEPROM_ADDR_ENCODER_VALUE           ( 2 )
-#define EEPROM_ADDR_CALIBRATION_CHECK       ( 6 )
-#define EEPROM_ADDR_MIN_CALIBRATED_VALUE    ( 8 )
-#define EEPROM_ADDR_STEPS_VALUE             ( 10 )
-#define CURRENT_MOTOR_TIMEOUT_MS            ( 250 )
-#define GRIND_TIMEOUT_SEC                   ( 600 )
-#define CUTOFF_CURRENT_AMPS                 ( 3.0f )
-#define NO_GRIND_CURRENT_AMPS               ( 0.6f )
-#define GRIND_ATTEMPS                       ( 1 )
-#define OFFSET_FACTOR_CORRECTION            ( 0.05f )
-#define SPEED_MIN_ERPM                      ( 800.0f )
-#define SPEED_ERPM_STEP                     ( 200.0f )
-#define SPEED_PID_CHANGE                    ( 2000 )
-#define MAX_ADC_VALUE_IN_VOLTS              ( 3.22f )
-#define MAX_ENCODER_VALUE_IN_VOLTS          ( 2.9f )
-#define THRESHOLD_VALUE                     ( 0.2f )
-#define DEFAULT_VALUE                       ( 0.0f )
-#define KNOB_STEPS                          ( 27 )
-#define SWITCH_STOP_POSITION                ( 2.8f )
-#define SWITCH_ON_POSITION_1                ( 1.2f )
-#define SWITCH_ON_POSITION_2                ( 1.6f )
-#define SWITCH_MOMENTARY_POSITION           ( 0.4f )
-#define SPEED_ERPM_MOMENTARY                ( 8000 )
-#define NTC_BETA_PARAMETER                  ( 3455.0f )
-#define NTC_RESISTANCE_VALUE                ( 10000 )
-#define NTC_TEMP_1_REL                      ( 1.0f / 298.15f )
-#define NTC_TEMP_2                          ( 273.15f )
-#define UNIT_CONSTANT                       ( 1.0f )
-#define TEMP_FILTER_CONSTANT                ( 0.1f )
-#define ADC_FILTER_CONSTANT                 ( 0.01f )
-#define SWITCH_FILTER_CONSTANT              ( 0.1f )
-#define ZERO_VECTOR_FREQ                    ( 10000.0f )
-#define FOC_KP_CONSTANT                     ( 0.01f )
-#define FOC_KI_CONSTANT                     ( 10.0f )
-#define CALIBRATION_CURRENT                 ( 2.0f )
-#define CALIBRATION_RATIO_VALUE             ( 0.0f )
-#define CALIBRATION_OFFSET_VALUE            ( 0.0f )
-#define SPEED_PID_KD_HIGH                   ( 0.0003f )
-#define SPEED_PID_KD_LOW                    ( 0.00002f )
-#define SPEED_ERPM_RAMP_HIGH                ( 10000.0f )
-#define SPEED_ERPM_RAMP_LOW                 ( 8000.0f )
-#define SYSTICK_ZERO_VALUE                  ( 0.0f )
-#define ZERO_GRIND_ATTEMPS                  ( 0 )
-#define SPEED_THREAD_STACK_SIZE             ( 1024 )
-#define ENCODER_THREAD_STACK_SIZE           ( 1024 )
-#define SAMPLES                             ( 15 )
-#define ADC_RANK_SEQUENCER_1                ( 1 )
-#define ADC_RANK_SEQUENCER_2                ( 2 )
-#define ADC_RANK_SEQUENCER_3                ( 3 )
-#define ADC_RANK_SEQUENCER_4                ( 4 )
-#define ADC_RANK_SEQUENCER_5                ( 5 )
-#define ADC_RANK_SEQUENCER_6                ( 6 )
-#define PIN_0                               ( 0 )
-#define PIN_1                               ( 1 )
-#define PIN_2                               ( 2 )
-#define PIN_3                               ( 3 )
-#define PIN_4                               ( 4 )
-#define PIN_5                               ( 5 )
-#define PIN_6                               ( 6 )
-#define PIN_7                               ( 7 )
-#define PIN_8                               ( 8 )
-#define PIN_9                               ( 9 )
-#define PIN_10                              ( 10 )
-#define PIN_11                              ( 11 )
-#define PIN_12                              ( 12 )
-#define PIN_13                              ( 13 )
-#define PIN_14                              ( 14 )
-#define PIN_15                              ( 15 )
+#define EEPROM_ADDR_ENCODER_VALUE             ( 2 )
+#define EEPROM_ADDR_CALIBRATION_CHECK         ( 6 )
+#define EEPROM_ADDR_MIN_CALIBRATED_VALUE      ( 8 )
+#define EEPROM_ADDR_STEPS_VALUE               ( 10 )
+#define CURRENT_MOTOR_TIMEOUT_MS              ( 250 )
+#define GRIND_TIMEOUT_SEC                     ( 600 )
+#define CUTOFF_CURRENT_AMPS                   ( 3.0f )
+#define NO_GRIND_CURRENT_AMPS                 ( 0.6f )
+#define GRIND_ATTEMPS                         ( 1 )
+#define OFFSET_FACTOR_CORRECTION              ( 0.05f )
+#define SPEED_MIN_ERPM                        ( 800.0f )
+#define SPEED_ERPM_STEP                       ( 200.0f )
+#define SPEED_ERPM_PID_CHANGE                 ( 2000 )
+#define MAX_ADC_VALUE_IN_VOLTS                ( 3.22f )
+#define MAX_ENCODER_VALUE_IN_VOLTS            ( 2.9f )
+#define THRESHOLD_VALUE                       ( 0.2f )
+#define DEFAULT_VALUE                         ( 0.0f )
+#define KNOB_STEPS                            ( 27 )
+#define SWITCH_STOP_POSITION_IN_VOLTS         ( 2.8f )
+#define SWITCH_ON_POSITION_1_IN_VOLTS         ( 1.2f )
+#define SWITCH_ON_POSITION_2_IN_VOLTS         ( 1.6f )
+#define SWITCH_MOMENTARY_POSITION_IN_VOLTS    ( 0.4f )
+#define SPEED_ERPM_MOMENTARY                  ( 8000 )
+#define NTC_BETA_PARAMETER                    ( 3455.0f )
+#define NTC_RESISTANCE_VALUE                  ( 10000 )
+#define NTC_TEMP_1_REL                        ( 1.0f / 298.15f )
+#define NTC_TEMP_2                            ( 273.15f )
+#define UNIT_CONSTANT                         ( 1.0f )
+#define TEMP_FILTER_CONSTANT                  ( 0.1f )
+#define ADC_FILTER_CONSTANT                   ( 0.01f )
+#define SWITCH_FILTER_CONSTANT                ( 0.1f )
+#define ZERO_VECTOR_FREQ                      ( 10000.0f )
+#define FOC_KP_CONSTANT                       ( 0.01f )
+#define FOC_KI_CONSTANT                       ( 10.0f )
+#define CALIBRATION_CURRENT                   ( 2.0f )
+#define CALIBRATION_RATIO_VALUE               ( 0.0f )
+#define CALIBRATION_OFFSET_VALUE              ( 0.0f )
+#define SPEED_PID_KD_HIGH                     ( 0.0003f )
+#define SPEED_PID_KD_LOW                      ( 0.00002f )
+#define SPEED_ERPM_RAMP_HIGH                  ( 10000.0f )
+#define SPEED_ERPM_RAMP_LOW                   ( 8000.0f )
+#define SYSTICK_ZERO_VALUE                    ( 0.0f )
+#define ZERO_GRIND_ATTEMPS                    ( 0 )
+#define SPEED_THREAD_STACK_SIZE               ( 1024 )
+#define ENCODER_THREAD_STACK_SIZE             ( 1024 )
+#define SAMPLES                               ( 15 )
+#define ADC_RANK_SEQUENCER_1                  ( 1 )
+#define ADC_RANK_SEQUENCER_2                  ( 2 )
+#define ADC_RANK_SEQUENCER_3                  ( 3 )
+#define ADC_RANK_SEQUENCER_4                  ( 4 )
+#define ADC_RANK_SEQUENCER_5                  ( 5 )
+#define ADC_RANK_SEQUENCER_6                  ( 6 )
+#define PIN_0                                 ( 0 )
+#define PIN_1                                 ( 1 )
+#define PIN_2                                 ( 2 )
+#define PIN_3                                 ( 3 )
+#define PIN_4                                 ( 4 )
+#define PIN_5                                 ( 5 )
+#define PIN_6                                 ( 6 )
+#define PIN_7                                 ( 7 )
+#define PIN_8                                 ( 8 )
+#define PIN_9                                 ( 9 )
+#define PIN_10                                ( 10 )
+#define PIN_11                                ( 11 )
+#define PIN_12                                ( 12 )
+#define PIN_13                                ( 13 )
+#define PIN_14                                ( 14 )
+#define PIN_15                                ( 15 )
 
 static THD_FUNCTION( speed_thread, arg );
 static THD_FUNCTION( encoder_thread, arg );
@@ -500,7 +500,7 @@ static void set_pid_kd_constant( void )
     mc_configuration * mcconf_previous = mempools_alloc_mcconf();
     *mcconf_previous = *mcconf;
 
-    if( speed_erpm_setpoint < SPEED_PID_CHANGE )
+    if( speed_erpm_setpoint < SPEED_ERPM_PID_CHANGE )
     {
         mcconf->s_pid_kd = SPEED_PID_KD_HIGH; // for 7A it is set to kp: 0.000400
     }
@@ -629,7 +629,7 @@ static THD_FUNCTION( speed_thread, arg )
         {
             palSetPad( PFC_ENABLE_PORT, PFC_ENABLE_PIN );
 
-            if( switch_positions_in_volts > SWITCH_STOP_POSITION )
+            if( switch_positions_in_volts > SWITCH_STOP_POSITION_IN_VOLTS )
             {
                 if( is_stop_state )
                 {
@@ -642,7 +642,7 @@ static THD_FUNCTION( speed_thread, arg )
                 }
             }
 
-            if( ( switch_positions_in_volts > SWITCH_ON_POSITION_1 ) && ( switch_positions_in_volts < SWITCH_ON_POSITION_2 ) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable )
+            if( ( switch_positions_in_volts > SWITCH_ON_POSITION_1_IN_VOLTS ) && ( switch_positions_in_volts < SWITCH_ON_POSITION_2_IN_VOLTS ) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable )
             {
                 timeout_reset();
                 mc_interface_set_pid_speed( speed_erpm_setpoint );
@@ -671,7 +671,7 @@ static THD_FUNCTION( speed_thread, arg )
                 is_stop_state = true;
             }
 
-            if( ( switch_positions_in_volts < SWITCH_MOMENTARY_POSITION ) && is_calibration_done )
+            if( ( switch_positions_in_volts < SWITCH_MOMENTARY_POSITION_IN_VOLTS ) && is_calibration_done )
             {
                 if( !safety_calibration )
                 {
@@ -816,7 +816,7 @@ static THD_FUNCTION( encoder_thread, arg )
             speed_erpm_setpoint = SPEED_MIN_ERPM + knob_index * SPEED_ERPM_STEP;
         }
 
-        if( speed_erpm_setpoint >= SPEED_PID_CHANGE )
+        if( speed_erpm_setpoint >= SPEED_ERPM_PID_CHANGE )
         {
             if( !is_pid_kd_change_up )
             {
@@ -826,7 +826,7 @@ static THD_FUNCTION( encoder_thread, arg )
             }
         }
 
-        if( speed_erpm_setpoint < SPEED_PID_CHANGE )
+        if( speed_erpm_setpoint < SPEED_ERPM_PID_CHANGE )
         {
             if( !is_pid_kd_change_down )
             {
