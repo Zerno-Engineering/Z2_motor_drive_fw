@@ -755,7 +755,7 @@ static THD_FUNCTION( encoder_thread, arg )
 {
     ( void ) arg;
 
-    chRegSetThreadName( "encoder_readings" );
+    chRegSetThreadName( "enc_read" );
 
     eeprom_var encoder_min_value_stored;
     eeprom_var step_value_stored;
