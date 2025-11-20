@@ -119,18 +119,8 @@ volatile float knob_read_in_volts;
 volatile float encoder_min_calibrated_value;
 volatile float steps;
 
-static void adc_read_callback( void );
-
-static uint8_t is_calibration_done = 0;
-
-float get_pfc_temp( void );
 static float encoder_calibrated_value_in_volts;
 static float knob_index;
-
-static void define_default_values( void );
-static void encoder_calibrate_offset( void );
-
-static bool is_pfc_ok( void );
 
 static volatile bool safety_calibration = false;
 static volatile bool is_erpm_done = false;
@@ -139,14 +129,23 @@ static volatile bool is_pid_kd_change_down = false;
 static volatile bool is_momentary_position_status = false;
 static volatile bool store_minimum_value = false;
 static volatile bool is_encoder_done = false;
+static volatile bool i2c_running = false;
 
 static bool is_default_erpm = true;
 static bool is_stop_state = false;
 static bool is_motor_stalled_fault = false;
 static bool is_motor_grinding_enable = true;
+static uint8_t is_calibration_done = 0;
 
+static void adc_read_callback( void );
+static void define_default_values( void );
+static void encoder_calibrate_offset( void );
 
-static volatile bool i2c_running = false;
+float get_pfc_temp( void );
+static bool is_pfc_ok( void );
+
+static void terminal_print_info( int argc,
+                                 const char ** argv );
 
 // I2C configuration
 static const I2CConfig i2cfg =
@@ -155,10 +154,6 @@ static const I2CConfig i2cfg =
     100000,
     STD_DUTY_CYCLE
 };
-
-
-static void terminal_print_info( int argc,
-                                 const char ** argv );
 
 void hw_init_gpio( void )
 {
