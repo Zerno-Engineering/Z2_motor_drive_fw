@@ -792,13 +792,9 @@ static THD_FUNCTION( encoder_thread, arg )
                 {
                     diff = fabs( sample_volts[ i ] - sample_volts[ i - 1 ] );
 
-                    if( diff > THRESHOLD_VALUE )
+                    if( diff < THRESHOLD_VALUE )
                     {
-                        get_encoder_sample_in_volts = DEFAULT_VALUE;
-                    }
-                    else
-                    {
-                        get_encoder_sample_in_volts = sample_volts[ i - 1 ] - OFFSET_FACTOR_CORRECTION;
+                        get_encoder_sample_in_volts = sample_volts[ i ] - OFFSET_FACTOR_CORRECTION;
                     }
                 }
             }
