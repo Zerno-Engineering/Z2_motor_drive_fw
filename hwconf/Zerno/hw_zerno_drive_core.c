@@ -51,7 +51,7 @@
 #define SPEED_ERPM_PID_CHANGE                 ( 2000 )
 #define MAX_ADC_VALUE_IN_VOLTS                ( 3.22f )
 #define MAX_ENCODER_VALUE_IN_VOLTS            ( 2.9f )
-#define THRESHOLD_VALUE                       ( 0.2f )
+#define THRESHOLD_VALUE                       ( 0.05f )
 #define DEFAULT_VALUE                         ( 0.0f )
 #define KNOB_STEPS                            ( 27 )
 #define SWITCH_STOP_POSITION_IN_VOLTS         ( 2.8f )
