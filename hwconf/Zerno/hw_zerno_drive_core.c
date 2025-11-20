@@ -729,7 +729,6 @@ static THD_FUNCTION( speed_thread, arg )
                             grind_attemp = ZERO_GRIND_ATTEMPS;
                         }
 
-                        chThdSleepMilliseconds( 2000 );
                         overload_time_in_systicks = SYSTICK_ZERO_VALUE;
                     }
                 }
