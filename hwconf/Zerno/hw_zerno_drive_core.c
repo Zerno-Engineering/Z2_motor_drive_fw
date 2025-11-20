@@ -145,7 +145,7 @@ static bool is_stop_state = false;
 static bool is_motor_stalled_fault = false;
 static bool is_motor_grinding_enable = true;
 
-// Variables
+
 static volatile bool i2c_running = false;
 
 // I2C configuration
@@ -156,19 +156,17 @@ static const I2CConfig i2cfg =
     STD_DUTY_CYCLE
 };
 
-// Private functions
+
 static void terminal_print_info( int argc,
                                  const char ** argv );
 
 void hw_init_gpio( void )
 {
-    // GPIO clock enable
     RCC_AHB1PeriphClockCmd( RCC_AHB1Periph_GPIOA, ENABLE );
     RCC_AHB1PeriphClockCmd( RCC_AHB1Periph_GPIOB, ENABLE );
     RCC_AHB1PeriphClockCmd( RCC_AHB1Periph_GPIOC, ENABLE );
     RCC_AHB1PeriphClockCmd( RCC_AHB1Periph_GPIOD, ENABLE );
 
-    // LEDs
     palSetPadMode( LED_GREEN_GPIO, LED_GREEN_PIN,
                    PAL_MODE_OUTPUT_PUSHPULL |
                    PAL_STM32_OSPEED_HIGHEST );
