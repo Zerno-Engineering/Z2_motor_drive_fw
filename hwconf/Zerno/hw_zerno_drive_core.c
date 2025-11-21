@@ -444,8 +444,7 @@ static void encoder_calibrate_offset( void )
     eeprom_var offset_value;
     eeprom_var calibration_check;
 
-    encoder_total_value_volts = ADC_VOLTS( ADC_IND_EXT );
-    main_switch_value_in_volts = ADC_VOLTS( ADC_IND_EXT2 );
+    encoder_total_value_volts = knob_read_in_volts; //ADC_VOLTS( ADC_IND_EXT );
 
     if( !is_momentary_position() )
     {
