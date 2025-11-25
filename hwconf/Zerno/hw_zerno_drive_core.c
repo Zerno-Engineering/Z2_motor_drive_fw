@@ -120,6 +120,7 @@ volatile float encoder_min_calibrated_value;
 volatile float steps;
 
 static float encoder_calibrated_value_in_volts;
+static float get_maximum_adc_value_in_volts;
 static float knob_index;
 
 static volatile bool safety_calibration = false;
@@ -135,7 +136,10 @@ static bool is_default_erpm = true;
 static bool is_stop_state = false;
 static bool is_motor_stalled_fault = false;
 static bool is_motor_grinding_enable = true;
+static bool is_in_maximum_detection = false;
+static bool is_maximum_done = false;
 static uint8_t is_calibration_done = 0;
+static uint8_t calibration_counter = 0;
 
 static void adc_read_callback( void );
 static void define_default_values( void );
@@ -446,7 +450,7 @@ static void encoder_calibrate_offset( void )
 
     encoder_total_value_volts = knob_read_in_volts; //ADC_VOLTS( ADC_IND_EXT );
 
-    if( !is_momentary_position() )
+    if( !is_momentary_position() && !is_in_maximum_detection )
     {
         encoder_min_value_in_volts = encoder_total_value_volts;
         offset_value.as_float = encoder_min_value_in_volts;
@@ -455,6 +459,13 @@ static void encoder_calibrate_offset( void )
         calibration_check.as_i32 = is_calibration_done;
         conf_general_store_eeprom_var_hw( &calibration_check, EEPROM_ADDR_CALIBRATION_CHECK );
         safety_calibration = true;
+        calibration_counter++;
+
+        if( calibration_counter > 1 )
+        {
+            is_in_maximum_detection = true;
+            store_minimum_value = true;
+        }
     }
 }
 
@@ -593,6 +604,8 @@ static void terminal_print_info( int argc,
     commands_printf( "step: %f", ( double ) steps );
     commands_printf( "speed (eRPM): %f", ( double ) speed_erpm_setpoint );
     commands_printf( "speed (RPM): %f", ( double ) ( speed_erpm_setpoint / 4 ) );
+    commands_printf( "counter: %d", calibration_counter );
+    commands_printf( "max adc: %f", ( double ) get_maximum_adc_value_in_volts );
 }
 
 float get_knob_read( void )
@@ -691,8 +704,16 @@ static THD_FUNCTION( speed_thread, arg )
                         is_default_erpm = true;
                         set_erpm_ramp_response();
                         encoder_calibrate_offset();
+
+                        if( ( calibration_counter > 1 ) && !is_maximum_done )
+                        {
+                            if( knob_read_in_volts > get_maximum_adc_value_in_volts )
+                            {
+                                get_maximum_adc_value_in_volts = knob_read_in_volts;
+                            }
+                        }
+
                         encoder_cal_detection();
-                        store_minimum_value = true;
                     }
                 }
             }
@@ -802,7 +823,7 @@ static THD_FUNCTION( encoder_thread, arg )
 
             if( encoder_calibrated_value_in_volts < 0.0 )
             {
-                encoder_calibrated_value_in_volts += MAX_ADC_VALUE_IN_VOLTS;
+                encoder_calibrated_value_in_volts += get_maximum_adc_value_in_volts; //MAX_ADC_VALUE_IN_VOLTS;
             }
 
             if( store_minimum_value )
