@@ -40,6 +40,7 @@
 #define EEPROM_ADDR_CALIBRATION_CHECK         ( 6 )
 #define EEPROM_ADDR_MIN_CALIBRATED_VALUE      ( 8 )
 #define EEPROM_ADDR_STEPS_VALUE               ( 10 )
+#define EEPROM_ADDR_ADC_MAX_VALUE             ( 12 )
 #define CURRENT_MOTOR_TIMEOUT_MS              ( 250 )
 #define GRIND_TIMEOUT_SEC                     ( 600 )
 #define CUTOFF_CURRENT_AMPS                   ( 3.0f )
@@ -429,6 +430,7 @@ static void define_default_values( void )
     eeprom_var default_calibration;
     eeprom_var min_calibrated_stored;
     eeprom_var step_stored;
+    eeprom_var adc_maximum_value_stored;
 
     conf_general_read_eeprom_var_hw( &default_offset, EEPROM_ADDR_ENCODER_VALUE );
     encoder_min_value_in_volts = default_offset.as_float;
@@ -441,6 +443,9 @@ static void define_default_values( void )
 
     conf_general_read_eeprom_var_hw( &step_stored, EEPROM_ADDR_STEPS_VALUE );
     steps = step_stored.as_float;
+
+    conf_general_read_eeprom_var_hw( &adc_maximum_value_stored, EEPROM_ADDR_ADC_MAX_VALUE );
+    get_maximum_adc_value_in_volts = adc_maximum_value_stored.as_float;
 }
 
 static void encoder_calibrate_offset( void )
@@ -620,6 +625,7 @@ static THD_FUNCTION( speed_thread, arg )
 
     chRegSetThreadName( "speed_pid" );
 
+    eeprom_var adc_maximum_value_in_volts;
     static float switch_positions_in_volts;
     static systime_t overload_time_in_systicks = SYSTICK_ZERO_VALUE;
     static systime_t no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
@@ -710,6 +716,8 @@ static THD_FUNCTION( speed_thread, arg )
                             if( knob_read_in_volts > get_maximum_adc_value_in_volts )
                             {
                                 get_maximum_adc_value_in_volts = knob_read_in_volts;
+                                adc_maximum_value_in_volts.as_float = get_maximum_adc_value_in_volts;
+                                conf_general_store_eeprom_var_hw( &adc_maximum_value_in_volts, EEPROM_ADDR_ADC_MAX_VALUE );
                             }
                         }
 
