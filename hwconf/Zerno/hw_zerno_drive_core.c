@@ -145,7 +145,7 @@ static uint8_t calibration_counter = 0;
 static void adc_read_callback( void );
 static void define_default_values( void );
 static void encoder_calibrate_offset( void );
-static void adc_maximum_value( void );
+static void adc_get_maximum_value( void );
 
 float get_pfc_temp( void );
 static bool is_pfc_ok( void );
@@ -470,7 +470,6 @@ static void encoder_calibrate_offset( void )
         if( calibration_counter > 1 )
         {
             is_in_maximum_detection = true;
-            store_minimum_value = true;
         }
     }
 }
@@ -558,7 +557,7 @@ static void encoder_cal_detection( void )
     is_encoder_done = true;
 }
 
-static void adc_maximum_value( void )
+static void adc_get_maximum_value( void )
 {
     eeprom_var adc_maximum_value_in_volts;
 
@@ -725,13 +724,16 @@ static THD_FUNCTION( speed_thread, arg )
                         is_default_erpm = true;
 
                         set_erpm_ramp_response();
-
                         encoder_calibrate_offset();
-
-                        adc_maximum_value();
-
                         encoder_cal_detection();
+
+                        if( calibration_counter > 1 )
+                        {
+                            store_minimum_value = true;
+                        }
                     }
+
+                    adc_get_maximum_value();
                 }
             }
             else
