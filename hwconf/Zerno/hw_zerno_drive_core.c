@@ -145,6 +145,7 @@ static uint8_t calibration_counter = 0;
 static void adc_read_callback( void );
 static void define_default_values( void );
 static void encoder_calibrate_offset( void );
+static void adc_maximum_value( void );
 
 float get_pfc_temp( void );
 static bool is_pfc_ok( void );
@@ -557,6 +558,21 @@ static void encoder_cal_detection( void )
     is_encoder_done = true;
 }
 
+static void adc_maximum_value( void )
+{
+    eeprom_var adc_maximum_value_in_volts;
+
+    if( ( calibration_counter > 1 ) && !is_maximum_done )
+    {
+        if( knob_read_in_volts > get_maximum_adc_value_in_volts )
+        {
+            get_maximum_adc_value_in_volts = knob_read_in_volts;
+            adc_maximum_value_in_volts.as_float = get_maximum_adc_value_in_volts;
+            conf_general_store_eeprom_var_hw( &adc_maximum_value_in_volts, EEPROM_ADDR_ADC_MAX_VALUE );
+        }
+    }
+}
+
 bool is_hw_fault( void )
 {
     bool custom_fault = false;
@@ -625,7 +641,6 @@ static THD_FUNCTION( speed_thread, arg )
 
     chRegSetThreadName( "speed_pid" );
 
-    eeprom_var adc_maximum_value_in_volts;
     static float switch_positions_in_volts;
     static systime_t overload_time_in_systicks = SYSTICK_ZERO_VALUE;
     static systime_t no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
@@ -708,18 +723,12 @@ static THD_FUNCTION( speed_thread, arg )
                         }
 
                         is_default_erpm = true;
+
                         set_erpm_ramp_response();
+
                         encoder_calibrate_offset();
 
-                        if( ( calibration_counter > 1 ) && !is_maximum_done )
-                        {
-                            if( knob_read_in_volts > get_maximum_adc_value_in_volts )
-                            {
-                                get_maximum_adc_value_in_volts = knob_read_in_volts;
-                                adc_maximum_value_in_volts.as_float = get_maximum_adc_value_in_volts;
-                                conf_general_store_eeprom_var_hw( &adc_maximum_value_in_volts, EEPROM_ADDR_ADC_MAX_VALUE );
-                            }
-                        }
+                        adc_maximum_value();
 
                         encoder_cal_detection();
                     }
