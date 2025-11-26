@@ -55,6 +55,8 @@
 #define THRESHOLD_VALUE                       ( 0.05f )
 #define DEFAULT_VALUE                         ( 0.0f )
 #define KNOB_STEPS                            ( 27 )
+#define MIN_KNOB_INDEX                        ( 0.0f )
+#define MAX_KNOB_INDEX                        ( 27.0f )
 #define SWITCH_STOP_POSITION_IN_VOLTS         ( 2.8f )
 #define SWITCH_ON_POSITION_1_IN_VOLTS         ( 1.2f )
 #define SWITCH_ON_POSITION_2_IN_VOLTS         ( 1.6f )
@@ -854,6 +856,16 @@ static THD_FUNCTION( encoder_thread, arg )
                 step_value_stored.as_float = steps;
                 conf_general_store_eeprom_var_hw( &step_value_stored, EEPROM_ADDR_STEPS_VALUE );
                 store_minimum_value = false;
+            }
+
+            if( knob_index < MIN_KNOB_INDEX )
+            {
+                knob_index = MIN_KNOB_INDEX;
+            }
+
+            if( knob_index > MAX_KNOB_INDEX )
+            {
+                knob_index = MAX_KNOB_INDEX;
             }
 
             knob_index = roundf( ( ( encoder_calibrated_value_in_volts - encoder_min_calibrated_value ) / steps ) );
