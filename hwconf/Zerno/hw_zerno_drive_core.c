@@ -125,6 +125,7 @@ volatile float steps;
 static float encoder_calibrated_value_in_volts;
 static float get_maximum_adc_value_in_volts;
 static float knob_index;
+static float read_buffer;
 
 static volatile bool safety_calibration = false;
 static volatile bool is_erpm_done = false;
@@ -143,11 +144,18 @@ static bool is_in_maximum_detection = false;
 static bool is_maximum_done = false;
 static uint8_t is_calibration_done = 0;
 static uint8_t calibration_counter = 0;
+static uint8_t head = 0;
+static uint8_t tail = 0;
+static float circular_buffer_in_volts[ SAMPLES ];
+uint8_t circular_index = 0;
+uint8_t circular_counter = 0;
 
 static void adc_read_callback( void );
 static void define_default_values( void );
 static void encoder_calibrate_offset( void );
 static void adc_get_maximum_value( void );
+static void write_adc_value_in_volts( void );
+static void read_adc_value_in_volts( void );
 
 float get_pfc_temp( void );
 static bool is_pfc_ok( void );
@@ -559,6 +567,28 @@ static void encoder_cal_detection( void )
     is_encoder_done = true;
 }
 
+static void write_adc_value_in_volts( void )
+{
+    circular_buffer_in_volts[ head ] = knob_read_in_volts;
+    head = ( head + 1 ) % SAMPLES;
+
+    if( circular_counter < SAMPLES )
+    {
+        circular_counter++;
+    }
+    else
+    {
+        tail = ( tail + 1 ) % SAMPLES;
+    }
+}
+
+static void read_adc_value_in_volts( void )
+{
+    read_buffer = circular_buffer_in_volts[ tail ];
+    tail = ( tail + 1 ) % SAMPLES;
+    circular_counter--;
+}
+
 static void adc_get_maximum_value( void )
 {
     eeprom_var adc_maximum_value_in_volts;
@@ -797,9 +827,6 @@ static THD_FUNCTION( encoder_thread, arg )
     float sample_volts[ SAMPLES ];
     float diff;
     float get_encoder_sample_in_volts;
-    float circular_buffer_in_volts[ SAMPLES ];
-    uint8_t circular_index = 0;
-    uint8_t circular_counter = 0;
 
     for( ; ; )
     {
