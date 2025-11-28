@@ -824,7 +824,6 @@ static THD_FUNCTION( encoder_thread, arg )
     eeprom_var step_value_stored;
 
     const float encoder_max_calibrated_value = MAX_ENCODER_VALUE_IN_VOLTS;
-    float sample_volts[ SAMPLES ];
     float diff;
     float get_encoder_sample_in_volts;
 
@@ -832,39 +831,15 @@ static THD_FUNCTION( encoder_thread, arg )
     {
         if( !is_momentary_position_status )
         {
-            circular_buffer_in_volts[ circular_index ] = knob_read_in_volts;
-            circular_index = ( circular_index + 1 ) % SAMPLES;
+            write_adc_value_in_volts();
 
-            if( circular_counter < SAMPLES )
+            read_adc_value_in_volts();
+
+            diff = fabs( circular_buffer_in_volts[ head ] - read_buffer );
+
+            if( diff < THRESHOLD_VALUE )
             {
-                circular_counter++;
-            }
-
-            for( uint8_t i = 0; i < circular_counter; i++ )
-            {
-                sample_volts[ i ] = circular_buffer_in_volts[ ( circular_index + i ) % SAMPLES ];
-            }
-
-            // If buffer not yet full, fill remaining entries with the newest valid sample to keep downstream logic stable
-            if( circular_counter < SAMPLES )
-            {
-                for( uint8_t i = circular_counter; i < SAMPLES; i++ )
-                {
-                    sample_volts[ i ] = sample_volts[ circular_counter - 1 ];
-                }
-            }
-
-            for( uint8_t i = 0; i < SAMPLES; i++ )
-            {
-                if( i != 0 )
-                {
-                    diff = fabs( sample_volts[ i ] - sample_volts[ i - 1 ] );
-
-                    if( diff < THRESHOLD_VALUE )
-                    {
-                        get_encoder_sample_in_volts = sample_volts[ i ] - OFFSET_FACTOR_CORRECTION;
-                    }
-                }
+                get_encoder_sample_in_volts = read_buffer - OFFSET_FACTOR_CORRECTION;
             }
 
             encoder_calibrated_value_in_volts = ( encoder_min_value_in_volts - get_encoder_sample_in_volts );
