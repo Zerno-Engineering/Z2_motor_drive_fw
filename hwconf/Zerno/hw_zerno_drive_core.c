@@ -860,6 +860,8 @@ static THD_FUNCTION( encoder_thread, arg )
                 store_minimum_value = false;
             }
 
+            knob_index = roundf( ( ( encoder_calibrated_value_in_volts - encoder_min_calibrated_value ) / steps ) );
+
             if( knob_index < MIN_KNOB_INDEX )
             {
                 knob_index = MIN_KNOB_INDEX;
@@ -869,8 +871,6 @@ static THD_FUNCTION( encoder_thread, arg )
             {
                 knob_index = MAX_KNOB_INDEX;
             }
-
-            knob_index = roundf( ( ( encoder_calibrated_value_in_volts - encoder_min_calibrated_value ) / steps ) );
 
             speed_erpm_setpoint = SPEED_MIN_ERPM + knob_index * SPEED_ERPM_STEP;
         }
