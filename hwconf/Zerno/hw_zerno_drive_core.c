@@ -464,7 +464,7 @@ static void encoder_calibrate_offset( void )
     eeprom_var offset_value;
     eeprom_var calibration_check;
 
-    encoder_total_value_volts = knob_read_in_volts; //ADC_VOLTS( ADC_IND_EXT );
+    encoder_total_value_volts = knob_read_in_volts;
 
     if( !is_momentary_position() && !is_in_maximum_detection )
     {
@@ -846,7 +846,7 @@ static THD_FUNCTION( encoder_thread, arg )
 
             if( encoder_calibrated_value_in_volts < 0.0 )
             {
-                encoder_calibrated_value_in_volts += get_maximum_adc_value_in_volts; //MAX_ADC_VALUE_IN_VOLTS;
+                encoder_calibrated_value_in_volts += get_maximum_adc_value_in_volts;
             }
 
             if( store_minimum_value )
