@@ -668,6 +668,7 @@ float get_knob_read( void )
 static THD_FUNCTION( speed_thread, arg )
 {
     ( void ) arg;
+    ( void ) speed_thread;
 
     chRegSetThreadName( "speed_pid" );
 
@@ -816,6 +817,7 @@ static THD_FUNCTION( speed_thread, arg )
 static THD_FUNCTION( encoder_thread, arg )
 {
     ( void ) arg;
+    ( void ) encoder_thread;
 
     chRegSetThreadName( "enc_read" );
 
