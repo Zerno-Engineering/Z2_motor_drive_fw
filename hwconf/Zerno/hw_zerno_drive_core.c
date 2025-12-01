@@ -895,6 +895,6 @@ static THD_FUNCTION( encoder_thread, arg )
             }
         }
 
-        chThdSleepMilliseconds( 10 );
+        chThdSleepMilliseconds( 2 );
     }
 }
