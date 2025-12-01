@@ -1,0 +1,56 @@
+name: uncrustify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+
+  workflow_dispatch:
+
+jobs:
+  lint-project:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: clone repo
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - env:
+          pass: \033[32;1mPASSED -
+          info: \033[33;1mINFO -
+          fail: \033[31;1mFAILED -
+          end: \033[0m
+          stepName: download, build, apply linter
+        name: ${{ env.stepName }}
+        shell: bash
+        run: |
+          curl -L -o uncrustify-0.67.tar.gz https://github.com/uncrustify/uncrustify/archive/refs/tags/uncrustify-0.67.tar.gz
+          tar -xzf uncrustify-0.67.tar.gz
+          cd uncrustify-uncrustify-0.67
+          mkdir build
+          cd build
+          cmake ..
+          cmake --build .
+          cp uncrustify /usr/local/bin && chmod +x /usr/local/bin/uncrustify
+          cd ../../
+          make lint
+
+          set +e
+          git diff --exit-code >> diffChanges.patch
+          exitCode=$?
+          set -e
+
+          if [ $exitCode -eq 0 ]; then
+              echo -e "${{ env.pass }} ${{ env.stepName }} ${{ env.end }}"
+          else
+              # Print formatting differences
+              echo -e "${{ env.info }} Format Difference ${{ env.end }}"
+              git diff --color=always
+              echo -e "${{ env.fail }} List of files with formatting errors: ${{ env.end }}"
+              echo -e "${{ env.fail }} "$(git diff --name-only)" ${{ env.end }} "
+              echo -e "${{ env.fail }} ${{ env.stepName }} ${{ env.end }}"
+          fi
+          exit $exitCode

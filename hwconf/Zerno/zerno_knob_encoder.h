@@ -10,6 +10,4 @@
 
 
 
-
-
 #endif /* HWCONF_ZERNO_ZERNO_KNOB_ENCODER_H_ */
