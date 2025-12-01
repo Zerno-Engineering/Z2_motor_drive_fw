@@ -867,8 +867,7 @@ static THD_FUNCTION( encoder_thread, arg )
             {
                 knob_index = MIN_KNOB_INDEX;
             }
-
-            if( knob_index > MAX_KNOB_INDEX )
+            else if( knob_index > MAX_KNOB_INDEX )
             {
                 knob_index = MAX_KNOB_INDEX;
             }
