@@ -720,7 +720,7 @@
 
 // Ramp eRPMs per second
 #ifndef MCCONF_S_PID_RAMP_ERPMS_S
-    #define MCCONF_S_PID_RAMP_ERPMS_S    8000
+    #define MCCONF_S_PID_RAMP_ERPMS_S    4000
 #endif
 
 // Speed Source
