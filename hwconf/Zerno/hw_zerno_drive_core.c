@@ -114,13 +114,13 @@ static THD_FUNCTION( encoder_thread, arg );
 static THD_WORKING_AREA( speed_thread_wa, SPEED_THREAD_STACK_SIZE );
 static THD_WORKING_AREA( encoder_thread_wa, ENCODER_THREAD_STACK_SIZE );
 
-volatile float encoder_min_value_in_volts;
-volatile float encoder_total_value_volts;
-volatile float main_switch_value_in_volts;
-volatile float speed_erpm_setpoint;
-volatile float knob_read_in_volts;
-volatile float encoder_min_calibrated_value;
-volatile float steps;
+static volatile float encoder_min_value_in_volts;
+static volatile float encoder_total_value_volts;
+static volatile float main_switch_value_in_volts;
+static volatile float speed_erpm_setpoint;
+static volatile float knob_read_in_volts;
+static volatile float encoder_min_calibrated_value;
+static volatile float steps;
 
 static float encoder_calibrated_value_in_volts;
 static float get_maximum_adc_value_in_volts;
@@ -146,9 +146,8 @@ static uint8_t is_calibration_done = 0;
 static uint8_t calibration_counter = 0;
 static uint8_t head = 0;
 static uint8_t tail = 0;
+static uint8_t circular_counter = 0;
 static float circular_buffer_in_volts[ SAMPLES ];
-uint8_t circular_index = 0;
-uint8_t circular_counter = 0;
 
 static void adc_read_callback( void );
 static void define_default_values( void );
@@ -156,8 +155,8 @@ static void encoder_calibrate_offset( void );
 static void adc_get_maximum_value( void );
 static void write_adc_value_in_volts( void );
 static void read_adc_value_in_volts( void );
+static float main_switch_adc_value( void );
 
-float get_pfc_temp( void );
 static bool is_pfc_ok( void );
 
 static void terminal_print_info( int argc,
@@ -421,7 +420,7 @@ static bool is_pfc_ok( void )
 
 /* Enable adc readings for main switch */
 
-float main_switch_adc_value( void )
+static float main_switch_adc_value( void )
 {
     static float main_switch;
     static float main_switch_filtered;
