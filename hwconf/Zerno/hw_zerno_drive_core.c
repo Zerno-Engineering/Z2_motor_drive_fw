@@ -810,7 +810,7 @@ static THD_FUNCTION( speed_thread, arg )
             }
         }
 
-        chThdSleepMilliseconds( 100 );
+        chThdSleepMilliseconds( 10 );
     }
 }
 
