@@ -254,8 +254,6 @@ void hw_init_gpio( void )
 
     define_default_values();
 
-    encoder_calibrate_offset();
-
     chThdCreateStatic( speed_thread_wa, sizeof( speed_thread_wa ), NORMALPRIO, speed_thread, NULL );
 
     chThdCreateStatic( encoder_thread_wa, sizeof( encoder_thread_wa ), NORMALPRIO, encoder_thread, NULL );
