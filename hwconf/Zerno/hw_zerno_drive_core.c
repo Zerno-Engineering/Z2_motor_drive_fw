@@ -875,7 +875,10 @@ static THD_FUNCTION( encoder_thread, arg )
                 knob_index = MAX_KNOB_INDEX;
             }
 
-            speed_erpm_setpoint = SPEED_MIN_ERPM + knob_index * SPEED_ERPM_STEP;
+            if( ( int ) knob_index % 2 == 0 )
+            {
+                speed_erpm_setpoint = erpm_lut[ ( int ) ( knob_index / 2 ) ];
+            }
         }
 
         if( speed_erpm_setpoint >= SPEED_ERPM_PID_CHANGE )
