@@ -718,7 +718,7 @@ static THD_FUNCTION( speed_thread, arg )
                 is_stop_state = true;
             }
 
-            if( ( switch_positions_in_volts < SWITCH_MOMENTARY_POSITION_IN_VOLTS ) && is_calibration_done )
+            if( ( switch_positions_in_volts < SWITCH_MOMENTARY_POSITION_IN_VOLTS ) )
             {
                 if( safety_calibration )
                 {
