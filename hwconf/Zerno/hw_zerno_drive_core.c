@@ -472,7 +472,7 @@ static void encoder_calibrate_offset( void )
         is_calibration_done = 1;
         calibration_check.as_i32 = is_calibration_done;
         conf_general_store_eeprom_var_hw( &calibration_check, EEPROM_ADDR_CALIBRATION_CHECK );
-        safety_calibration = true;
+        safety_calibration = false;
         calibration_counter++;
 
         if( calibration_counter > 1 )
@@ -728,7 +728,7 @@ static THD_FUNCTION( speed_thread, arg )
 
             if( ( switch_positions_in_volts < SWITCH_MOMENTARY_POSITION_IN_VOLTS ) && is_calibration_done )
             {
-                if( !safety_calibration )
+                if( safety_calibration )
                 {
                     if( !is_erpm_done )
                     {
@@ -768,7 +768,7 @@ static THD_FUNCTION( speed_thread, arg )
             }
             else
             {
-                safety_calibration = false;
+                safety_calibration = true;
                 is_erpm_done = false;
                 is_encoder_done = false;
 
