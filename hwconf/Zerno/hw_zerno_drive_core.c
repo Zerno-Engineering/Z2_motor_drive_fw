@@ -661,6 +661,8 @@ static THD_FUNCTION( speed_thread, arg )
 
     chRegSetThreadName( "speed_pid" );
 
+    chThdSleepMilliseconds( 2000 );
+
     static systime_t overload_time_in_systicks = SYSTICK_ZERO_VALUE;
     static systime_t no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
     static uint8_t grind_attemp = ZERO_GRIND_ATTEMPS;
