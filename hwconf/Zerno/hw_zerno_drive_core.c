@@ -143,7 +143,6 @@ static bool is_motor_grinding_enable = true;
 static bool is_in_maximum_detection = false;
 static bool is_maximum_done = false;
 static uint8_t is_calibration_done = 0;
-static uint8_t calibration_counter = 0;
 static uint8_t head = 0;
 static uint8_t tail = 0;
 static uint8_t circular_counter = 0;
@@ -473,12 +472,7 @@ static void encoder_calibrate_offset( void )
         calibration_check.as_i32 = is_calibration_done;
         conf_general_store_eeprom_var_hw( &calibration_check, EEPROM_ADDR_CALIBRATION_CHECK );
         safety_calibration = false;
-        calibration_counter++;
-
-        if( calibration_counter > 1 )
-        {
-            is_in_maximum_detection = true;
-        }
+        is_in_maximum_detection = true;
     }
 }
 
@@ -591,14 +585,11 @@ static void adc_get_maximum_value( void )
 {
     eeprom_var adc_maximum_value_in_volts;
 
-    if( ( calibration_counter > 1 ) && !is_maximum_done )
+    if( knob_read_in_volts > get_maximum_adc_value_in_volts )
     {
-        if( knob_read_in_volts > get_maximum_adc_value_in_volts )
-        {
-            get_maximum_adc_value_in_volts = knob_read_in_volts;
-            adc_maximum_value_in_volts.as_float = get_maximum_adc_value_in_volts;
-            conf_general_store_eeprom_var_hw( &adc_maximum_value_in_volts, EEPROM_ADDR_ADC_MAX_VALUE );
-        }
+        get_maximum_adc_value_in_volts = knob_read_in_volts;
+        adc_maximum_value_in_volts.as_float = get_maximum_adc_value_in_volts;
+        conf_general_store_eeprom_var_hw( &adc_maximum_value_in_volts, EEPROM_ADDR_ADC_MAX_VALUE );
     }
 }
 
@@ -654,7 +645,6 @@ static void terminal_print_info( int argc,
     commands_printf( "step: %f", ( double ) steps );
     commands_printf( "speed (eRPM): %f", ( double ) speed_erpm_setpoint );
     commands_printf( "speed (RPM): %f", ( double ) ( speed_erpm_setpoint / 4 ) );
-    commands_printf( "counter: %d", calibration_counter );
     commands_printf( "max adc: %f", ( double ) get_maximum_adc_value_in_volts );
 }
 
@@ -756,11 +746,7 @@ static THD_FUNCTION( speed_thread, arg )
                         set_erpm_ramp_response();
                         encoder_calibrate_offset();
                         encoder_cal_detection();
-
-                        if( calibration_counter > 1 )
-                        {
-                            store_minimum_value = true;
-                        }
+                        store_minimum_value = true;
                     }
 
                     adc_get_maximum_value();
