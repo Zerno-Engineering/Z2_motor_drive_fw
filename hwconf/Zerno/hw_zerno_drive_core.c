@@ -161,6 +161,24 @@ static bool is_pfc_ok( void );
 static void terminal_print_info( int argc,
                                  const char ** argv );
 
+static const float erpm_lut[ 14 ] =
+{
+    800.0,
+    1200.0,
+    1600.0,
+    2000.0,
+    2400.0,
+    2800.0,
+    3200.0,
+    3600.0,
+    4000.0,
+    4800.0,
+    5600.0,
+    6400.0,
+    7200.0,
+    8000.0,
+};
+
 // I2C configuration
 static const I2CConfig i2cfg =
 {
