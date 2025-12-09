@@ -148,6 +148,7 @@ static uint8_t head = 0;
 static uint8_t tail = 0;
 static uint8_t circular_counter = 0;
 static float circular_buffer_in_volts[ SAMPLES ];
+static float switch_positions_in_volts;
 
 static void adc_read_callback( void );
 static void define_default_values( void );
@@ -672,7 +673,6 @@ static THD_FUNCTION( speed_thread, arg )
 
     chRegSetThreadName( "speed_pid" );
 
-    static float switch_positions_in_volts;
     static systime_t overload_time_in_systicks = SYSTICK_ZERO_VALUE;
     static systime_t no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
     static uint8_t grind_attemp = ZERO_GRIND_ATTEMPS;
