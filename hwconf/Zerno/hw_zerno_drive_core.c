@@ -466,7 +466,7 @@ static void encoder_calibrate_offset( void )
 
     encoder_total_value_volts = knob_read_in_volts;
 
-    if( !is_momentary_position() && !is_in_maximum_detection )
+    if( ( switch_positions_in_volts < SWITCH_MOMENTARY_POSITION_IN_VOLTS ) && !is_in_maximum_detection )
     {
         encoder_min_value_in_volts = encoder_total_value_volts;
         offset_value.as_float = encoder_min_value_in_volts;
