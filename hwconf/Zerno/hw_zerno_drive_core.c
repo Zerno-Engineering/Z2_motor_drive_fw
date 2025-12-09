@@ -141,7 +141,6 @@ static bool is_stop_state = false;
 static bool is_motor_stalled_fault = false;
 static bool is_motor_grinding_enable = true;
 static bool is_in_maximum_detection = false;
-static bool is_maximum_done = false;
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
 static uint8_t tail = 0;
