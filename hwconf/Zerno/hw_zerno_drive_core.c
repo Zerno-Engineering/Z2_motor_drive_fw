@@ -49,7 +49,7 @@
 #define OFFSET_FACTOR_CORRECTION              ( 0.05f )
 #define SPEED_MIN_ERPM                        ( 800.0f )
 #define SPEED_ERPM_STEP                       ( 200.0f )
-#define SPEED_ERPM_PID_CHANGE                 ( 2000 )
+#define SPEED_ERPM_PID_CHANGE                 ( 1600 )
 #define MAX_ADC_VALUE_IN_VOLTS                ( 3.22f )
 #define MAX_ENCODER_VALUE_IN_VOLTS            ( 2.9f )
 #define THRESHOLD_VALUE                       ( 0.05f )
