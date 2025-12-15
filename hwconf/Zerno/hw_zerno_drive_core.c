@@ -858,7 +858,7 @@ static THD_FUNCTION( encoder_thread, arg )
 
             if( encoder_calibrated_value_in_volts < 0.0 )
             {
-                encoder_calibrated_value_in_volts += get_maximum_adc_value_in_volts;
+                encoder_calibrated_value_in_volts += get_maximum_adc_value_in_volts - OFFSET_FACTOR_CORRECTION;
             }
 
             if( store_minimum_value )
