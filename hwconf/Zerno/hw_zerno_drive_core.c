@@ -50,7 +50,7 @@
 #define SPEED_MIN_ERPM                        ( 800.0f )
 #define SPEED_ERPM_STEP                       ( 200.0f )
 #define SPEED_ERPM_PID_CHANGE                 ( 1600 )
-#define MAX_ADC_VALUE_IN_VOLTS                ( 3.22f )
+#define MAX_ADC_VALUE_IN_VOLTS                ( 3.27f )
 #define MAX_ENCODER_VALUE_IN_VOLTS            ( 2.9f )
 #define THRESHOLD_VALUE                       ( 0.05f )
 #define DEFAULT_VALUE                         ( 0.0f )
@@ -604,7 +604,15 @@ static void adc_get_maximum_value( void )
 
     if( knob_read_in_volts > get_maximum_adc_value_in_volts )
     {
-        get_maximum_adc_value_in_volts = knob_read_in_volts;
+        if( ( get_maximum_adc_value_in_volts >= MAX_ADC_VALUE_IN_VOLTS ) )
+        {
+            get_maximum_adc_value_in_volts = knob_read_in_volts;
+        }
+        else
+        {
+            get_maximum_adc_value_in_volts = MAX_ADC_VALUE_IN_VOLTS;
+        }
+
         adc_maximum_value_in_volts.as_float = get_maximum_adc_value_in_volts;
         conf_general_store_eeprom_var_hw( &adc_maximum_value_in_volts, EEPROM_ADDR_ADC_MAX_VALUE );
     }
@@ -850,7 +858,7 @@ static THD_FUNCTION( encoder_thread, arg )
 
             if( encoder_calibrated_value_in_volts < 0.0 )
             {
-                encoder_calibrated_value_in_volts += get_maximum_adc_value_in_volts;
+                encoder_calibrated_value_in_volts += get_maximum_adc_value_in_volts - OFFSET_FACTOR_CORRECTION;
             }
 
             if( store_minimum_value )
