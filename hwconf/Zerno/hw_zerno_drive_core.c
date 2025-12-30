@@ -54,9 +54,9 @@
 #define MAX_ENCODER_VALUE_IN_VOLTS            ( 2.9f )
 #define THRESHOLD_VALUE                       ( 0.05f )
 #define DEFAULT_VALUE                         ( 0.0f )
-#define KNOB_STEPS                            ( 27 )
+#define KNOB_STEPS                            ( 13 )
 #define MIN_KNOB_INDEX                        ( 0.0f )
-#define MAX_KNOB_INDEX                        ( 27.0f )
+#define MAX_KNOB_INDEX                        ( 13.0f )
 #define SWITCH_STOP_POSITION_IN_VOLTS         ( 2.8f )
 #define SWITCH_ON_POSITION_1_IN_VOLTS         ( 1.2f )
 #define SWITCH_ON_POSITION_2_IN_VOLTS         ( 1.6f )
@@ -883,10 +883,7 @@ static THD_FUNCTION( encoder_thread, arg )
                 knob_index = MAX_KNOB_INDEX;
             }
 
-            if( ( int ) knob_index % 2 == 0 )
-            {
-                speed_erpm_setpoint = erpm_lut[ ( int ) ( knob_index / 2 ) ];
-            }
+            speed_erpm_setpoint = erpm_lut[ ( int ) ( knob_index ) ];
         }
 
         if( speed_erpm_setpoint >= SPEED_ERPM_PID_CHANGE )
