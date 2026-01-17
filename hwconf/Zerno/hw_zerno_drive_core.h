@@ -267,17 +267,20 @@
 #define READ_HALL2()    palReadPad( HW_HALL_ENC_GPIO2, HW_HALL_ENC_PIN2 )
 #define READ_HALL3()    palReadPad( HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3 )
 
-#define HW_DEAD_TIME_NSEC     250.0
+#define HW_DEAD_TIME_NSEC            250.0
 
 // Setting limits
-#define HW_LIM_CURRENT        -8.0, 8.0
-#define HW_LIM_CURRENT_IN     -6.0, 6.0
-#define HW_LIM_CURRENT_ABS    0.0, 13.0
-#define HW_LIM_VIN            100.0, 450.0
-#define HW_LIM_ERPM           -60e3, 60e3
-#define HW_LIM_DUTY_MIN       0.0, 0.1
-#define HW_LIM_DUTY_MAX       0.0, 0.99
-#define HW_LIM_TEMP_FET       -40.0, 110.0
+#define HW_LIM_CURRENT               -8.0, 8.0
+#define HW_LIM_CURRENT_IN            -6.0, 6.0
+#define HW_LIM_CURRENT_ABS           0.0, 13.0
+#define HW_LIM_VIN                   100.0, 450.0
+#define HW_LIM_ERPM                  -60e3, 60e3
+#define HW_LIM_DUTY_MIN              0.0, 0.1
+#define HW_LIM_DUTY_MAX              0.0, 0.99
+#define HW_LIM_TEMP_FET              -40.0, 110.0
+
+// a way to read the stored calibrated encoder offset value
+#define MCCONF_FOC_ENCODER_OFFSET    read_motor_encoder_offset()
 
 // Functions
 bool is_momentary_position( void );
@@ -286,6 +289,6 @@ bool is_hw_fault( void );
 float get_pfc_temp( void );
 float get_adc_filtered( void );
 float get_knob_read( void );
-
+float read_motor_encoder_offset( void );
 
 #endif /* HW_ZERNO_DRIVE_CORE_H_ */
