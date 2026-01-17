@@ -576,11 +576,14 @@ static void encoder_cal_detection( void )
 
     mcpwm_foc_encoder_detect( current, false, &offset, &ratio, &inverted );
 
-    encoder_offset.as_float = offset;
-    conf_general_store_eeprom_var_hw( &encoder_offset, EEPROM_ADDR_ENCODER_MOTOR_OFFSET );
+    // encoder_offset.as_float = offset;
+    // conf_general_store_eeprom_var_hw( &encoder_offset, EEPROM_ADDR_ENCODER_MOTOR_OFFSET );
 
     mcconf_previous->foc_encoder_offset = offset;
     mcconf->foc_encoder_offset = offset;
+
+    encoder_offset.as_float = offset;
+    conf_general_store_eeprom_var_hw( &encoder_offset, EEPROM_ADDR_ENCODER_MOTOR_OFFSET );
 
     mc_interface_set_configuration( mcconf );
     mc_interface_set_configuration( mcconf_previous );
