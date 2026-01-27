@@ -150,7 +150,7 @@ static float switch_positions_in_volts;
 
 static void adc_read_callback( void );
 static void define_default_values( void );
-static void encoder_calibrate_offset( void );
+static void knob_encoder_calibrate_offset( void );
 static void adc_get_maximum_value( void );
 static void write_adc_value_in_volts( void );
 static void read_adc_value_in_volts( void );
@@ -473,7 +473,7 @@ static void define_default_values( void )
     get_maximum_adc_value_in_volts = adc_maximum_value_stored.as_float;
 }
 
-static void encoder_calibrate_offset( void )
+static void knob_encoder_calibrate_offset( void )
 {
     eeprom_var offset_value;
     eeprom_var calibration_check;
@@ -773,7 +773,7 @@ static THD_FUNCTION( speed_thread, arg )
                         is_default_erpm = true;
 
                         set_erpm_ramp_response();
-                        encoder_calibrate_offset();
+                        knob_encoder_calibrate_offset();
                         motor_encoder_calibrate_offset();
                         store_minimum_value = true;
                     }
