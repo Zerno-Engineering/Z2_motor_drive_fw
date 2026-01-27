@@ -42,6 +42,7 @@
 #define EEPROM_ADDR_STEPS_VALUE               ( 10 )
 #define EEPROM_ADDR_ADC_MAX_VALUE             ( 12 )
 #define CURRENT_MOTOR_TIMEOUT_MS              ( 250 )
+#define MOTOR_SELECTED                        ( 2 )
 #define GRIND_TIMEOUT_SEC                     ( 600 )
 #define CUTOFF_CURRENT_AMPS                   ( 3.0f )
 #define NO_GRIND_CURRENT_AMPS                 ( 0.6f )
@@ -567,7 +568,7 @@ static void motor_encoder_calibrate_offset( void )
     mcconf_previous->foc_encoder_offset = offset;
     mcconf->foc_encoder_offset = offset;
 
-    conf_general_store_mc_configuration( mcconf_previous, mc_interface_get_motor_thread() == 2 );
+    conf_general_store_mc_configuration( mcconf_previous, mc_interface_get_motor_thread() == MOTOR_SELECTED );
 
     mc_interface_set_configuration( mcconf );
     mc_interface_set_configuration( mcconf_previous );
