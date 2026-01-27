@@ -543,7 +543,7 @@ static void set_pid_kd_constant( void )
     mempools_free_mcconf( mcconf_previous );
 }
 
-static void encoder_cal_detection( void )
+static void motor_encoder_calibrate_offset( void )
 {
     mc_configuration * mcconf = mempools_alloc_mcconf();
 
@@ -774,7 +774,7 @@ static THD_FUNCTION( speed_thread, arg )
 
                         set_erpm_ramp_response();
                         encoder_calibrate_offset();
-                        encoder_cal_detection();
+                        motor_encoder_calibrate_offset();
                         store_minimum_value = true;
                     }
 
