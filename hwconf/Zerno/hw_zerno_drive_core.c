@@ -41,8 +41,8 @@
 #define EEPROM_ADDR_MIN_CALIBRATED_VALUE      ( 8 )
 #define EEPROM_ADDR_STEPS_VALUE               ( 10 )
 #define EEPROM_ADDR_ADC_MAX_VALUE             ( 12 )
-#define EEPROM_ADDR_ENCODER_MOTOR_OFFSET      ( 16 )
 #define CURRENT_MOTOR_TIMEOUT_MS              ( 250 )
+#define MOTOR_SELECTED                        ( 2 )
 #define GRIND_TIMEOUT_SEC                     ( 600 )
 #define CUTOFF_CURRENT_AMPS                   ( 3.0f )
 #define NO_GRIND_CURRENT_AMPS                 ( 0.6f )
@@ -151,7 +151,7 @@ static float switch_positions_in_volts;
 
 static void adc_read_callback( void );
 static void define_default_values( void );
-static void encoder_calibrate_offset( void );
+static void knob_encoder_calibrate_offset( void );
 static void adc_get_maximum_value( void );
 static void write_adc_value_in_volts( void );
 static void read_adc_value_in_volts( void );
@@ -474,17 +474,7 @@ static void define_default_values( void )
     get_maximum_adc_value_in_volts = adc_maximum_value_stored.as_float;
 }
 
-float read_motor_encoder_offset( void )
-{
-    eeprom_var motor_encoder_offset;
-    float motor_encoder_offset_value;
-
-    conf_general_read_eeprom_var_hw( &motor_encoder_offset, EEPROM_ADDR_ENCODER_MOTOR_OFFSET );
-    motor_encoder_offset_value = motor_encoder_offset.as_float;
-    return( motor_encoder_offset_value );
-}
-
-static void encoder_calibrate_offset( void )
+static void knob_encoder_calibrate_offset( void )
 {
     eeprom_var offset_value;
     eeprom_var calibration_check;
@@ -554,10 +544,9 @@ static void set_pid_kd_constant( void )
     mempools_free_mcconf( mcconf_previous );
 }
 
-static void encoder_cal_detection( void )
+static void motor_encoder_calibrate_offset( void )
 {
     mc_configuration * mcconf = mempools_alloc_mcconf();
-    eeprom_var encoder_offset;
 
     *mcconf = *mc_interface_get_configuration();
     mc_configuration * mcconf_previous = mempools_alloc_mcconf();
@@ -579,8 +568,7 @@ static void encoder_cal_detection( void )
     mcconf_previous->foc_encoder_offset = offset;
     mcconf->foc_encoder_offset = offset;
 
-    encoder_offset.as_float = offset;
-    conf_general_store_eeprom_var_hw( &encoder_offset, EEPROM_ADDR_ENCODER_MOTOR_OFFSET );
+    conf_general_store_mc_configuration( mcconf_previous, mc_interface_get_motor_thread() == MOTOR_SELECTED );
 
     mc_interface_set_configuration( mcconf );
     mc_interface_set_configuration( mcconf_previous );
@@ -786,8 +774,8 @@ static THD_FUNCTION( speed_thread, arg )
                         is_default_erpm = true;
 
                         set_erpm_ramp_response();
-                        encoder_calibrate_offset();
-                        encoder_cal_detection();
+                        knob_encoder_calibrate_offset();
+                        motor_encoder_calibrate_offset();
                         store_minimum_value = true;
                     }
 

@@ -283,6 +283,11 @@
     #define MCCONF_FOC_ENCODER_INVERTED    0
 #endif
 
+// Encoder Offset
+#ifndef MCCONF_FOC_ENCODER_OFFSET
+    #define MCCONF_FOC_ENCODER_OFFSET    54.2
+#endif
+
 // Encoder Ratio
 #ifndef MCCONF_FOC_ENCODER_RATIO
     #define MCCONF_FOC_ENCODER_RATIO    4
