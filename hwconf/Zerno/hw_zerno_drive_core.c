@@ -77,7 +77,7 @@
 #define CALIBRATION_CURRENT                       (2.0f)
 #define CALIBRATION_RATIO_VALUE                   (0.0f)
 #define CALIBRATION_OFFSET_VALUE                  (0.0f)
-#define SPEED_PID_KD_HIGH                         (0.0003f)
+#define SPEED_PID_KD_HIGH                         (0.0001f)
 #define SPEED_PID_KD_LOW                          (0.00002f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
 #define SPEED_ERPM_RAMP_LOW                       (4000.0f)
