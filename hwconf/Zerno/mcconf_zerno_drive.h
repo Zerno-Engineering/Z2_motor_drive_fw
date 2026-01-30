@@ -700,7 +700,7 @@
 
 // Speed PID Kd
 #ifndef MCCONF_S_PID_KD
-#define MCCONF_S_PID_KD        0.0003
+#define MCCONF_S_PID_KD        0.0001
 #endif
 
 // Speed PID Kd Filter
