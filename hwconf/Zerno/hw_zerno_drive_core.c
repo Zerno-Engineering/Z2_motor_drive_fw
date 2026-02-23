@@ -137,11 +137,12 @@ static volatile bool store_minimum_value = false;
 static volatile bool is_encoder_done = false;
 static volatile bool i2c_running = false;
 
-static bool is_default_erpm = true;
 static bool is_stop_state = false;
 static bool is_motor_stalled_fault = false;
 static bool is_motor_grinding_enable = true;
 static bool is_in_maximum_detection = false;
+static bool change_erpm_ramp_on_state = false;
+static bool change_erpm_ramp_momentary_state = false;
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
 static uint8_t tail = 0;
@@ -482,10 +483,14 @@ static void set_erpm_ramp_response(void) {
 	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
 	*mcconf_previous = *mcconf;
 
-	if (!is_default_erpm) {
-		mcconf->s_pid_ramp_erpms_s = SPEED_ERPM_RAMP_HIGH;
-	} else {
+	if (change_erpm_ramp_on_state) {
 		mcconf->s_pid_ramp_erpms_s = SPEED_ERPM_RAMP_LOW;
+		change_erpm_ramp_on_state = false;
+	}
+
+	if (change_erpm_ramp_momentary_state) {
+		mcconf->s_pid_ramp_erpms_s = SPEED_ERPM_RAMP_HIGH;
+		change_erpm_ramp_momentary_state = false;
 	}
 
 	mc_interface_set_configuration(mcconf_previous);
@@ -666,9 +671,20 @@ static THD_FUNCTION(speed_thread, arg) {
 					is_motor_grinding_enable = true;
 					no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
 				}
+
+				safety_calibration = true;
+				is_erpm_done = false;
+				is_encoder_done = false;
 			}
 
 			if ((switch_positions_in_volts > SWITCH_ON_POSITION_1_IN_VOLTS) && (switch_positions_in_volts < SWITCH_ON_POSITION_2_IN_VOLTS) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable) {
+				change_erpm_ramp_momentary_state = false;
+				change_erpm_ramp_on_state = true;
+
+				if (!is_erpm_done) {
+					set_erpm_ramp_response();
+				}
+
 				timeout_reset();
 				mc_interface_set_pid_speed(speed_erpm_setpoint);
 
@@ -691,13 +707,16 @@ static THD_FUNCTION(speed_thread, arg) {
 
 			if ((switch_positions_in_volts < SWITCH_MOMENTARY_POSITION_IN_VOLTS)) {
 				if (safety_calibration) {
+					change_erpm_ramp_momentary_state = true;
+					change_erpm_ramp_on_state = false;
+
 					if (!is_erpm_done) {
-						is_default_erpm = false;
 						set_erpm_ramp_response();
 					}
 
 					speed_erpm_setpoint = SPEED_ERPM_MOMENTARY;
 					is_momentary_position_status = true;
+
 					timeout_reset();
 					mc_interface_set_pid_speed(speed_erpm_setpoint);
 					is_stop_state = true;
@@ -707,24 +726,12 @@ static THD_FUNCTION(speed_thread, arg) {
 							chThdSleepMilliseconds(10);
 						}
 
-						is_default_erpm = true;
-
-						set_erpm_ramp_response();
 						knob_encoder_calibrate_offset();
 						motor_encoder_calibrate_offset();
 						store_minimum_value = true;
 					}
 
 					adc_get_maximum_value();
-				}
-			} else {
-				safety_calibration = true;
-				is_erpm_done = false;
-				is_encoder_done = false;
-
-				if (!is_default_erpm) {
-					is_default_erpm = true;
-					set_erpm_ramp_response();
 				}
 			}
 
@@ -764,7 +771,7 @@ static THD_FUNCTION(encoder_thread, arg) {
 
 	const float encoder_max_calibrated_value = MAX_ENCODER_VALUE_IN_VOLTS;
 	float diff;
-	float get_encoder_sample_in_volts;
+	float get_encoder_sample_in_volts = 0.0;
 
 	for (;;) {
 		if (!is_momentary_position_status) {
