@@ -25,12 +25,12 @@
 
 // Motor Current Max
 #ifndef MCCONF_L_CURRENT_MAX
-#define MCCONF_L_CURRENT_MAX        8
+#define MCCONF_L_CURRENT_MAX        9
 #endif
 
 // Motor Current Max Brake
 #ifndef MCCONF_L_CURRENT_MIN
-#define MCCONF_L_CURRENT_MIN        -8
+#define MCCONF_L_CURRENT_MIN        -9
 #endif
 
 // Battery Current Max
@@ -690,7 +690,7 @@
 
 // Speed PID Kp
 #ifndef MCCONF_S_PID_KP
-#define MCCONF_S_PID_KP        0.008
+#define MCCONF_S_PID_KP        0.009
 #endif
 
 // Speed PID Ki
@@ -720,7 +720,7 @@
 
 // Ramp eRPMs per second
 #ifndef MCCONF_S_PID_RAMP_ERPMS_S
-#define MCCONF_S_PID_RAMP_ERPMS_S        4000
+#define MCCONF_S_PID_RAMP_ERPMS_S        9000
 #endif
 
 // Speed Source

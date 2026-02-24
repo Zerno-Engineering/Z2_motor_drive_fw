@@ -80,7 +80,7 @@
 #define SPEED_PID_KD_HIGH                         (0.0001f)
 #define SPEED_PID_KD_LOW                          (0.00002f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
-#define SPEED_ERPM_RAMP_LOW                       (4000.0f)
+#define SPEED_ERPM_RAMP_LOW                       (9000.0f)
 #define SYSTICK_ZERO_VALUE                        (0.0f)
 #define ZERO_GRIND_ATTEMPS                        (0)
 #define SPEED_THREAD_STACK_SIZE                   (1024)
