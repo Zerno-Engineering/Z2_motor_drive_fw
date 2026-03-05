@@ -77,6 +77,8 @@
 #define CALIBRATION_CURRENT                       (2.0f)
 #define CALIBRATION_RATIO_VALUE                   (0.0f)
 #define CALIBRATION_OFFSET_VALUE                  (0.0f)
+#define SPEED_PID_KP_LOW                          (0.006)
+#define SPEED_PID_KP_HIGH                         (0.016)
 #define SPEED_PID_KD_HIGH                         (0.0001f)
 #define SPEED_PID_KD_LOW                          (0.00002f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
@@ -484,11 +486,13 @@ static void set_erpm_ramp_response(void) {
 	*mcconf_previous = *mcconf;
 
 	if (change_erpm_ramp_on_state) {
+		mcconf->s_pid_kp = SPEED_PID_KP_HIGH;
 		mcconf->s_pid_ramp_erpms_s = SPEED_ERPM_RAMP_LOW;
 		change_erpm_ramp_on_state = false;
 	}
 
 	if (change_erpm_ramp_momentary_state) {
+		mcconf->s_pid_kp = SPEED_PID_KP_LOW;
 		mcconf->s_pid_ramp_erpms_s = SPEED_ERPM_RAMP_HIGH;
 		change_erpm_ramp_momentary_state = false;
 	}
