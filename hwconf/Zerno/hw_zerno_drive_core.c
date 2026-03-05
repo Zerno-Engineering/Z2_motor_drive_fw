@@ -143,8 +143,8 @@ static bool is_stop_state = false;
 static bool is_motor_stalled_fault = false;
 static bool is_motor_grinding_enable = true;
 static bool is_in_maximum_detection = false;
-static bool change_erpm_ramp_on_state = false;
-static bool change_erpm_ramp_momentary_state = false;
+static bool change_erpm_ramp_pid_on_state = false;
+static bool change_erpm_ramp_pid_mom_state = false;
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
 static uint8_t tail = 0;
@@ -478,23 +478,23 @@ static void knob_encoder_calibrate_offset(void) {
 	}
 }
 
-static void set_erpm_ramp_response(void) {
+static void set_erpm_ramp_pid_response(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
 
 	*mcconf = *mc_interface_get_configuration();
 	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
 	*mcconf_previous = *mcconf;
 
-	if (change_erpm_ramp_on_state) {
+	if (change_erpm_ramp_pid_on_state) {
 		mcconf->s_pid_kp = SPEED_PID_KP_HIGH;
 		mcconf->s_pid_ramp_erpms_s = SPEED_ERPM_RAMP_LOW;
-		change_erpm_ramp_on_state = false;
+		change_erpm_ramp_pid_on_state = false;
 	}
 
-	if (change_erpm_ramp_momentary_state) {
+	if (change_erpm_ramp_pid_mom_state) {
 		mcconf->s_pid_kp = SPEED_PID_KP_LOW;
 		mcconf->s_pid_ramp_erpms_s = SPEED_ERPM_RAMP_HIGH;
-		change_erpm_ramp_momentary_state = false;
+		change_erpm_ramp_pid_mom_state = false;
 	}
 
 	mc_interface_set_configuration(mcconf_previous);
@@ -682,11 +682,11 @@ static THD_FUNCTION(speed_thread, arg) {
 			}
 
 			if ((switch_positions_in_volts > SWITCH_ON_POSITION_1_IN_VOLTS) && (switch_positions_in_volts < SWITCH_ON_POSITION_2_IN_VOLTS) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable) {
-				change_erpm_ramp_momentary_state = false;
-				change_erpm_ramp_on_state = true;
+				change_erpm_ramp_pid_mom_state = false;
+				change_erpm_ramp_pid_on_state = true;
 
 				if (!is_erpm_done) {
-					set_erpm_ramp_response();
+					set_erpm_ramp_pid_response();
 				}
 
 				timeout_reset();
@@ -711,11 +711,11 @@ static THD_FUNCTION(speed_thread, arg) {
 
 			if ((switch_positions_in_volts < SWITCH_MOMENTARY_POSITION_IN_VOLTS)) {
 				if (safety_calibration) {
-					change_erpm_ramp_momentary_state = true;
-					change_erpm_ramp_on_state = false;
+					change_erpm_ramp_pid_mom_state = true;
+					change_erpm_ramp_pid_on_state = false;
 
 					if (!is_erpm_done) {
-						set_erpm_ramp_response();
+						set_erpm_ramp_pid_response();
 					}
 
 					speed_erpm_setpoint = SPEED_ERPM_MOMENTARY;
