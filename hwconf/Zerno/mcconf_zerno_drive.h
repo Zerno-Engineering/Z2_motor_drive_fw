@@ -690,7 +690,7 @@
 
 // Speed PID Kp
 #ifndef MCCONF_S_PID_KP
-#define MCCONF_S_PID_KP        0.016
+#define MCCONF_S_PID_KP        0.017
 #endif
 
 // Speed PID Ki
