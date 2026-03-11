@@ -685,12 +685,12 @@
 
 // PID Loop Rate
 #ifndef MCCONF_SP_PID_LOOP_RATE
-#define MCCONF_SP_PID_LOOP_RATE        5
+#define MCCONF_SP_PID_LOOP_RATE        8
 #endif
 
 // Speed PID Kp
 #ifndef MCCONF_S_PID_KP
-#define MCCONF_S_PID_KP        0.018
+#define MCCONF_S_PID_KP        0.028
 #endif
 
 // Speed PID Ki
