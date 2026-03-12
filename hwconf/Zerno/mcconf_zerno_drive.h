@@ -300,7 +300,7 @@
 
 // Speed Tracker Kp
 #ifndef MCCONF_FOC_PLL_KP
-#define MCCONF_FOC_PLL_KP        2000
+#define MCCONF_FOC_PLL_KP        2900
 #endif
 
 // Speed Tracker Ki
