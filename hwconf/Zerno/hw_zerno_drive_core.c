@@ -165,7 +165,7 @@ static bool is_pfc_ok(void);
 static void terminal_print_info(int argc, const char** argv);
 
 static const float erpm_lut[14] = {
-	800.0,
+	1000.0,
 	1200.0,
 	1600.0,
 	2000.0,
