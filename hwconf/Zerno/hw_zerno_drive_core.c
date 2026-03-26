@@ -145,6 +145,10 @@ static bool is_motor_grinding_enable = true;
 static bool is_in_maximum_detection = false;
 static bool change_erpm_ramp_pid_on_state = false;
 static bool change_erpm_ramp_pid_mom_state = false;
+static bool is_about_to_stall = false;
+static bool is_kp_high = false;
+static bool is_kp_low = false;
+
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
 static uint8_t tail = 0;
@@ -526,6 +530,27 @@ static void set_pid_kd_constant(void) {
 	mempools_free_mcconf(mcconf_previous);
 }
 
+static void set_pid_kp(void) {
+	mc_configuration* mcconf = mempools_alloc_mcconf();
+
+	*mcconf = *mc_interface_get_configuration();
+	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
+	*mcconf_previous = *mcconf;
+
+	if (is_about_to_stall) {
+		mcconf->s_pid_kp = SPEED_PID_KP_HIGH * 1.15; // make the Kp constant PID three times.
+		is_kp_high = true;
+	} else {
+		mcconf->s_pid_kp = SPEED_PID_KP_HIGH * 1.0; // make the Kp constant PID three times.
+		is_kp_low = true;
+	}
+
+	mc_interface_set_configuration(mcconf_previous);
+	mc_interface_set_configuration(mcconf);
+
+	mempools_free_mcconf(mcconf);
+	mempools_free_mcconf(mcconf_previous);
+}
 static void motor_encoder_calibrate_offset(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
 
@@ -740,6 +765,9 @@ static THD_FUNCTION(speed_thread, arg) {
 			}
 
 			if (mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS) {
+				is_about_to_stall = true;
+				//set_pid_kp();
+
 				if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
 					overload_time_in_systicks = chVTGetSystemTime();
 				} else {
@@ -756,7 +784,23 @@ static THD_FUNCTION(speed_thread, arg) {
 					}
 				}
 			} else {
+				is_about_to_stall = false;
+				//set_pid_kp();
 				overload_time_in_systicks = SYSTICK_ZERO_VALUE;
+			}
+
+			if (mc_interface_get_rpm() < 850) {
+				is_about_to_stall = true;
+
+				//if (!is_kp_high) {
+				set_pid_kp();
+				//}
+			} else {
+				is_about_to_stall = false;
+
+				//if (!is_kp_low) {
+				set_pid_kp();
+				//}
 			}
 		}
 
