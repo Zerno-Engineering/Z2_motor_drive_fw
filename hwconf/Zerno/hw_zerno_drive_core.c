@@ -83,6 +83,7 @@
 #define SPEED_PID_KD_LOW                          (0.00002f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
 #define SPEED_ERPM_RAMP_LOW                       (3500.0f)
+#define KP_TIMES_CONSTANT                         (1.15f)
 #define SYSTICK_ZERO_VALUE                        (0.0f)
 #define ZERO_GRIND_ATTEMPS                        (0)
 #define SPEED_THREAD_STACK_SIZE                   (1024)
@@ -145,6 +146,10 @@ static bool is_motor_grinding_enable = true;
 static bool is_in_maximum_detection = false;
 static bool change_erpm_ramp_pid_on_state = false;
 static bool change_erpm_ramp_pid_mom_state = false;
+static bool is_about_to_stall = false;
+static bool is_kp_high = false;
+static bool is_kp_low = false;
+
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
 static uint8_t tail = 0;
@@ -526,6 +531,27 @@ static void set_pid_kd_constant(void) {
 	mempools_free_mcconf(mcconf_previous);
 }
 
+static void set_pid_kp_constant(void) {
+	mc_configuration* mcconf = mempools_alloc_mcconf();
+
+	*mcconf = *mc_interface_get_configuration();
+	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
+	*mcconf_previous = *mcconf;
+
+	if (is_about_to_stall) {
+		mcconf->s_pid_kp = SPEED_PID_KP_HIGH * KP_TIMES_CONSTANT;
+		is_kp_high = true;
+	} else {
+		mcconf->s_pid_kp = SPEED_PID_KP_HIGH;
+		is_kp_low = true;
+	}
+
+	mc_interface_set_configuration(mcconf_previous);
+	mc_interface_set_configuration(mcconf);
+
+	mempools_free_mcconf(mcconf);
+	mempools_free_mcconf(mcconf_previous);
+}
 static void motor_encoder_calibrate_offset(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
 
@@ -689,6 +715,9 @@ static THD_FUNCTION(speed_thread, arg) {
 					set_erpm_ramp_pid_response();
 				}
 
+				is_about_to_stall = false;
+				set_pid_kp_constant();
+
 				timeout_reset();
 				mc_interface_set_pid_speed(speed_erpm_setpoint);
 
@@ -739,7 +768,10 @@ static THD_FUNCTION(speed_thread, arg) {
 				}
 			}
 
-			if (mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS) {
+			if ((mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS)) {
+				is_about_to_stall = true;
+				set_pid_kp_constant();
+
 				if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
 					overload_time_in_systicks = chVTGetSystemTime();
 				} else {

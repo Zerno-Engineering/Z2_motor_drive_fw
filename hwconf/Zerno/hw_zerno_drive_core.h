@@ -271,7 +271,7 @@
 // Setting limits
 #define HW_LIM_CURRENT            -10.0, 10.0
 #define HW_LIM_CURRENT_IN         -6.0, 6.0
-#define HW_LIM_CURRENT_ABS        0.0, 13.0
+#define HW_LIM_CURRENT_ABS        0.0, 15.0
 #define HW_LIM_VIN                100.0, 450.0
 #define HW_LIM_ERPM               -60e3, 60e3
 #define HW_LIM_DUTY_MIN           0.0, 0.1
