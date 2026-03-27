@@ -531,7 +531,7 @@ static void set_pid_kd_constant(void) {
 	mempools_free_mcconf(mcconf_previous);
 }
 
-static void set_pid_kp(void) {
+static void set_pid_kp_constant(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
 
 	*mcconf = *mc_interface_get_configuration();
@@ -716,7 +716,7 @@ static THD_FUNCTION(speed_thread, arg) {
 				}
 
 				is_about_to_stall = false;
-				set_pid_kp();
+				set_pid_kp_constant();
 
 				timeout_reset();
 				mc_interface_set_pid_speed(speed_erpm_setpoint);
@@ -770,7 +770,7 @@ static THD_FUNCTION(speed_thread, arg) {
 
 			if ((mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS)) {
 				is_about_to_stall = true;
-				set_pid_kp();
+				set_pid_kp_constant();
 
 				if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
 					overload_time_in_systicks = chVTGetSystemTime();
