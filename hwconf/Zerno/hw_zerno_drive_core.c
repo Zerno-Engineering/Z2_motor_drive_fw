@@ -83,7 +83,7 @@
 #define SPEED_PID_KD_LOW                          (0.00002f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
 #define SPEED_ERPM_RAMP_LOW                       (3500.0f)
-#define KP_TIMES_CONSTANT                         (1.2f)
+#define KP_TIMES_CONSTANT                         (1.15f)
 #define SYSTICK_ZERO_VALUE                        (0.0f)
 #define ZERO_GRIND_ATTEMPS                        (0)
 #define SPEED_THREAD_STACK_SIZE                   (1024)
@@ -715,6 +715,9 @@ static THD_FUNCTION(speed_thread, arg) {
 					set_erpm_ramp_pid_response();
 				}
 
+				is_about_to_stall = false;
+				set_pid_kp();
+
 				timeout_reset();
 				mc_interface_set_pid_speed(speed_erpm_setpoint);
 
@@ -765,7 +768,7 @@ static THD_FUNCTION(speed_thread, arg) {
 				}
 			}
 
-			if (mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS) {
+			if ((mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS)) {
 				is_about_to_stall = true;
 				set_pid_kp();
 
@@ -785,8 +788,6 @@ static THD_FUNCTION(speed_thread, arg) {
 					}
 				}
 			} else {
-				is_about_to_stall = false;
-				set_pid_kp();
 				overload_time_in_systicks = SYSTICK_ZERO_VALUE;
 			}
 		}
