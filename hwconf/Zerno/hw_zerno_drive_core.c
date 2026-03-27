@@ -766,7 +766,7 @@ static THD_FUNCTION(speed_thread, arg) {
 
 			if (mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS) {
 				is_about_to_stall = true;
-				//set_pid_kp();
+				set_pid_kp();
 
 				if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
 					overload_time_in_systicks = chVTGetSystemTime();
@@ -785,22 +785,8 @@ static THD_FUNCTION(speed_thread, arg) {
 				}
 			} else {
 				is_about_to_stall = false;
-				//set_pid_kp();
+				set_pid_kp();
 				overload_time_in_systicks = SYSTICK_ZERO_VALUE;
-			}
-
-			if (mc_interface_get_rpm() < 850) {
-				is_about_to_stall = true;
-
-				//if (!is_kp_high) {
-				set_pid_kp();
-				//}
-			} else {
-				is_about_to_stall = false;
-
-				//if (!is_kp_low) {
-				set_pid_kp();
-				//}
 			}
 		}
 
