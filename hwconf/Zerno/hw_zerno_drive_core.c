@@ -83,6 +83,7 @@
 #define SPEED_PID_KD_LOW                          (0.00002f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
 #define SPEED_ERPM_RAMP_LOW                       (3500.0f)
+#define KP_TIMES_CONSTANT                         (1.2f)
 #define SYSTICK_ZERO_VALUE                        (0.0f)
 #define ZERO_GRIND_ATTEMPS                        (0)
 #define SPEED_THREAD_STACK_SIZE                   (1024)
@@ -538,10 +539,10 @@ static void set_pid_kp(void) {
 	*mcconf_previous = *mcconf;
 
 	if (is_about_to_stall) {
-		mcconf->s_pid_kp = SPEED_PID_KP_HIGH * 1.15; // make the Kp constant PID three times.
+		mcconf->s_pid_kp = SPEED_PID_KP_HIGH * KP_TIMES_CONSTANT;
 		is_kp_high = true;
 	} else {
-		mcconf->s_pid_kp = SPEED_PID_KP_HIGH * 1.0; // make the Kp constant PID three times.
+		mcconf->s_pid_kp = SPEED_PID_KP_HIGH;
 		is_kp_low = true;
 	}
 
