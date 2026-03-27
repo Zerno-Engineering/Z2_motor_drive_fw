@@ -25,12 +25,12 @@
 
 // Motor Current Max
 #ifndef MCCONF_L_CURRENT_MAX
-#define MCCONF_L_CURRENT_MAX        9
+#define MCCONF_L_CURRENT_MAX        10
 #endif
 
 // Motor Current Max Brake
 #ifndef MCCONF_L_CURRENT_MIN
-#define MCCONF_L_CURRENT_MIN        -9
+#define MCCONF_L_CURRENT_MIN        -10
 #endif
 
 // Battery Current Max
@@ -155,12 +155,12 @@
 
 // Maximum Wattage
 #ifndef MCCONF_L_WATT_MAX
-#define MCCONF_L_WATT_MAX        1000.0
+#define MCCONF_L_WATT_MAX        2000.0
 #endif
 
 // Maximum Braking Wattage
 #ifndef MCCONF_L_WATT_MIN
-#define MCCONF_L_WATT_MIN        -1000.0
+#define MCCONF_L_WATT_MIN        -2000.0
 #endif
 
 // Max Current Scale
