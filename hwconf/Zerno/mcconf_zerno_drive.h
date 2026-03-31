@@ -25,12 +25,12 @@
 
 // Motor Current Max
 #ifndef MCCONF_L_CURRENT_MAX
-#define MCCONF_L_CURRENT_MAX        10
+#define MCCONF_L_CURRENT_MAX        9
 #endif
 
 // Motor Current Max Brake
 #ifndef MCCONF_L_CURRENT_MIN
-#define MCCONF_L_CURRENT_MIN        -10
+#define MCCONF_L_CURRENT_MIN        -9
 #endif
 
 // Battery Current Max
@@ -55,7 +55,7 @@
 
 // Absolute Maximum Current
 #ifndef MCCONF_L_MAX_ABS_CURRENT
-#define MCCONF_L_MAX_ABS_CURRENT        12.4
+#define MCCONF_L_MAX_ABS_CURRENT        13.5
 #endif
 
 // Max ERPM Reverse
