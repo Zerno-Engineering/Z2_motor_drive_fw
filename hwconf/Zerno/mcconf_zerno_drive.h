@@ -25,12 +25,12 @@
 
 // Motor Current Max
 #ifndef MCCONF_L_CURRENT_MAX
-#define MCCONF_L_CURRENT_MAX        10
+#define MCCONF_L_CURRENT_MAX        9
 #endif
 
 // Motor Current Max Brake
 #ifndef MCCONF_L_CURRENT_MIN
-#define MCCONF_L_CURRENT_MIN        -10
+#define MCCONF_L_CURRENT_MIN        -9
 #endif
 
 // Battery Current Max
@@ -55,7 +55,7 @@
 
 // Absolute Maximum Current
 #ifndef MCCONF_L_MAX_ABS_CURRENT
-#define MCCONF_L_MAX_ABS_CURRENT        12.4
+#define MCCONF_L_MAX_ABS_CURRENT        13.5
 #endif
 
 // Max ERPM Reverse
@@ -95,7 +95,7 @@
 
 // Battery Voltage Cutoff Start
 #ifndef MCCONF_L_BATTERY_CUT_START
-#define MCCONF_L_BATTERY_CUT_START        380
+#define MCCONF_L_BATTERY_CUT_START        360
 #endif
 
 // Battery Voltage Cutoff End
@@ -690,7 +690,7 @@
 
 // Speed PID Kp
 #ifndef MCCONF_S_PID_KP
-#define MCCONF_S_PID_KP        0.028
+#define MCCONF_S_PID_KP        0.032
 #endif
 
 // Speed PID Ki
