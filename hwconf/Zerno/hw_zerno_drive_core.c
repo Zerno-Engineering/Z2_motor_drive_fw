@@ -111,14 +111,14 @@
 #define PIN_13                                    (13)
 #define PIN_14                                    (14)
 #define PIN_15                                    (15)
-#define ANTISTALL_RPM_ERROR_TH                    300.0
+#define ANTISTALL_RPM_ERROR_TH                    150.0 // 300.0
 #define ANTISTALL_RPM_DROP_TH                     -800.0
 #define ANTISTALL_BOOST_CURRENT                   (CUTOFF_CURRENT_AMPS * 1.2)
 #define ANTISTALL_BOOST_TIME_MS                   120
 #define ANTISTALL_COOLDOWN_MS                     300
 
 #define ANTISTALL_ARM_ERROR_RPM                   150.0
-#define ANTISTALL_ARM_TIME_MS                     300
+#define ANTISTALL_ARM_TIME_MS                     100 // 300
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
