@@ -44,7 +44,7 @@
 #define CURRENT_MOTOR_TIMEOUT_MS                  (250)
 #define MOTOR_SELECTED                            (2)
 #define GRIND_TIMEOUT_SEC                         (600)
-#define CUTOFF_CURRENT_AMPS                       (3.7f)
+#define CUTOFF_CURRENT_AMPS                       (4.5f)
 #define NO_GRIND_CURRENT_AMPS                     (0.6f)
 #define GRIND_ATTEMPS                             (1)
 #define OFFSET_FACTOR_CORRECTION                  (0.05f)
@@ -113,7 +113,7 @@
 #define PIN_15                                    (15)
 #define ANTISTALL_RPM_ERROR_TH                    150.0 // 300.0
 #define ANTISTALL_RPM_DROP_TH                     -800.0
-#define ANTISTALL_BOOST_CURRENT                   (CUTOFF_CURRENT_AMPS * 1.2)
+#define ANTISTALL_BOOST_CURRENT                   (CUTOFF_CURRENT_AMPS * 1.3)
 #define ANTISTALL_BOOST_TIME_MS                   120
 #define ANTISTALL_COOLDOWN_MS                     300
 
