@@ -113,7 +113,7 @@
 #define PIN_15                                    (15)
 #define ANTISTALL_RPM_ERROR_TH                    150.0 // 300.0
 #define ANTISTALL_RPM_DROP_TH                     -1000.0 // this value is for the derivative rpm, just to check when the motor is about to stalls. erpm/s
-#define ANTISTALL_BOOST_CURRENT                   (CUTOFF_CURRENT_AMPS * 1.3)
+#define ANTISTALL_BOOST_CURRENT                   6.0
 #define ANTISTALL_BOOST_TIME_MS                   120
 #define ANTISTALL_COOLDOWN_MS                     300
 
