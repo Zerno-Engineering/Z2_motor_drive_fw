@@ -300,7 +300,7 @@
 
 // Speed Tracker Kp
 #ifndef MCCONF_FOC_PLL_KP
-#define MCCONF_FOC_PLL_KP        2900
+#define MCCONF_FOC_PLL_KP        2000
 #endif
 
 // Speed Tracker Ki
@@ -325,7 +325,7 @@
 
 // Motor Flux Linkage (λ)
 #ifndef MCCONF_FOC_MOTOR_FLUX_LINKAGE
-#define MCCONF_FOC_MOTOR_FLUX_LINKAGE        0.058243
+#define MCCONF_FOC_MOTOR_FLUX_LINKAGE        0.3877
 #endif
 
 // Observer Gain (x1M)
@@ -690,7 +690,7 @@
 
 // Speed PID Kp
 #ifndef MCCONF_S_PID_KP
-#define MCCONF_S_PID_KP        0.028
+#define MCCONF_S_PID_KP        0.008
 #endif
 
 // Speed PID Ki
@@ -700,7 +700,7 @@
 
 // Speed PID Kd
 #ifndef MCCONF_S_PID_KD
-#define MCCONF_S_PID_KD        0.0001
+#define MCCONF_S_PID_KD        0.000005
 #endif
 
 // Speed PID Kd Filter
@@ -720,7 +720,7 @@
 
 // Ramp eRPMs per second
 #ifndef MCCONF_S_PID_RAMP_ERPMS_S
-#define MCCONF_S_PID_RAMP_ERPMS_S        3500
+#define MCCONF_S_PID_RAMP_ERPMS_S        5000
 #endif
 
 // Speed Source
