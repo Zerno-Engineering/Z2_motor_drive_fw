@@ -77,12 +77,10 @@
 #define CALIBRATION_CURRENT                       (2.0f)
 #define CALIBRATION_RATIO_VALUE                   (0.0f)
 #define CALIBRATION_OFFSET_VALUE                  (0.0f)
-#define SPEED_PID_KP_LOW                          (0.006)
-#define SPEED_PID_KP_HIGH                         (0.028)
-#define SPEED_PID_KD_HIGH                         (0.0001f)
-#define SPEED_PID_KD_LOW                          (0.00002f)
+#define SPEED_PID_KP_LOW                          (0.008)
+#define SPEED_PID_KP_HIGH                         (0.008)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
-#define SPEED_ERPM_RAMP_LOW                       (3500.0f)
+#define SPEED_ERPM_RAMP_LOW                       (5000.0f)
 #define KP_TIMES_CONSTANT                         (1.05f)
 #define SYSTICK_ZERO_VALUE                        (0.0f)
 #define ZERO_GRIND_ATTEMPS                        (0)
@@ -111,14 +109,14 @@
 #define PIN_13                                    (13)
 #define PIN_14                                    (14)
 #define PIN_15                                    (15)
-#define ANTISTALL_RPM_ERROR_TH                    150.0 // 300.0
-#define ANTISTALL_RPM_DROP_TH                     -1000.0 // this value is for the derivative rpm, just to check when the motor is about to stalls. erpm/s
+#define ANTISTALL_RPM_ERROR_TH                    150.0
+#define ANTISTALL_RPM_DROP_TH                     -1000.0
 #define ANTISTALL_BOOST_CURRENT                   6.0
 #define ANTISTALL_BOOST_TIME_MS                   120
 #define ANTISTALL_COOLDOWN_MS                     300
 
 #define ANTISTALL_ARM_ERROR_RPM                   150.0
-#define ANTISTALL_ARM_TIME_MS                     100 // 300
+#define ANTISTALL_ARM_TIME_MS                     100
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
@@ -519,26 +517,6 @@ static void set_erpm_ramp_pid_response(void) {
 	is_erpm_done = true;
 }
 
-static void set_pid_kd_constant(void) {
-	mc_configuration* mcconf = mempools_alloc_mcconf();
-
-	*mcconf = *mc_interface_get_configuration();
-	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
-	*mcconf_previous = *mcconf;
-
-	if (speed_erpm_setpoint < SPEED_ERPM_PID_CHANGE) {
-		mcconf->s_pid_kd = SPEED_PID_KD_HIGH; // for 7A it is set to kp: 0.000400
-	} else {
-		mcconf->s_pid_kd = SPEED_PID_KD_LOW;
-	}
-
-	mc_interface_set_configuration(mcconf_previous);
-	mc_interface_set_configuration(mcconf);
-
-	mempools_free_mcconf(mcconf);
-	mempools_free_mcconf(mcconf_previous);
-}
-
 static void set_pid_kp_constant(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
 
@@ -927,22 +905,6 @@ static THD_FUNCTION(encoder_thread, arg) {
 			}
 
 			speed_erpm_setpoint = erpm_lut[(int)(knob_index)];
-		}
-
-		if (speed_erpm_setpoint >= SPEED_ERPM_PID_CHANGE) {
-			if (!is_pid_kd_change_up) {
-				set_pid_kd_constant();
-				is_pid_kd_change_up = true;
-				is_pid_kd_change_down = false;
-			}
-		}
-
-		if (speed_erpm_setpoint < SPEED_ERPM_PID_CHANGE) {
-			if (!is_pid_kd_change_down) {
-				set_pid_kd_constant();
-				is_pid_kd_change_down = true;
-				is_pid_kd_change_up = false;
-			}
 		}
 
 		chThdSleepMilliseconds(2);
