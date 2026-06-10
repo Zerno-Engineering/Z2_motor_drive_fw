@@ -149,6 +149,7 @@ static bool change_erpm_ramp_pid_on_state = false;
 static bool change_erpm_ramp_pid_mom_state = false;
 static float original_current_max = -1.0f;
 static float original_kp = -1.0f;
+static uint32_t stall_event_count = 0;
 
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
@@ -168,6 +169,7 @@ static float main_switch_adc_value(void);
 static bool is_pfc_ok(void);
 
 static void terminal_print_info(int argc, const char** argv);
+static void terminal_stall_events(int argc, const char** argv);
 
 static const float erpm_lut[14] = {
 	1000.0,
@@ -284,6 +286,12 @@ void hw_init_gpio(void) {
 		"Value",
 		0,
 		terminal_print_info);
+
+	terminal_register_command_callback(
+		"stall_events",
+		"Print the number of times the stall prevention boost has fired",
+		0,
+		terminal_stall_events);
 }
 
 void hw_setup_adc_channels(void) {
@@ -529,6 +537,8 @@ static void enable_stall_boost(void) {
 	}
 	mcconf->s_pid_kp = original_kp * STALL_KP_MULTIPLIER;
 
+	stall_event_count++;
+
 	mc_interface_set_configuration(mcconf_previous);
 	mc_interface_set_configuration(mcconf);
 
@@ -648,6 +658,13 @@ float get_pfc_temp(void) {
 
 	UTILS_LP_FAST(temp_pfc_filtered, temp_pfc, TEMP_FILTER_CONSTANT);
 	return temp_pfc_filtered;
+}
+
+static void terminal_stall_events(int argc, const char** argv) {
+	(void)argc;
+	(void)argv;
+
+	commands_printf("Stall boost events: %u", stall_event_count);
 }
 
 static void terminal_print_info(int argc, const char** argv) {
@@ -804,19 +821,21 @@ static THD_FUNCTION(speed_thread, arg) {
 			}
 
 			if ((mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS)) {
-				if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
-					overload_time_in_systicks = chVTGetSystemTime();
-				} else {
-					if (chVTTimeElapsedSinceX(overload_time_in_systicks) > MS2ST(CURRENT_MOTOR_TIMEOUT_MS)) {
-						mc_interface_release_motor();
-						grind_attemp++;
+				if (!stall_boost_active) {
+					if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
+						overload_time_in_systicks = chVTGetSystemTime();
+					} else {
+						if (chVTTimeElapsedSinceX(overload_time_in_systicks) > MS2ST(CURRENT_MOTOR_TIMEOUT_MS)) {
+							mc_interface_release_motor();
+							grind_attemp++;
 
-						if (grind_attemp == GRIND_ATTEMPS) {
-							is_motor_stalled_fault = true;
-							grind_attemp = ZERO_GRIND_ATTEMPS;
+							if (grind_attemp == GRIND_ATTEMPS) {
+								is_motor_stalled_fault = true;
+								grind_attemp = ZERO_GRIND_ATTEMPS;
+							}
+
+							overload_time_in_systicks = SYSTICK_ZERO_VALUE;
 						}
-
-						overload_time_in_systicks = SYSTICK_ZERO_VALUE;
 					}
 				}
 			} else {
