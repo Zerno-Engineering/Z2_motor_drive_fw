@@ -44,7 +44,7 @@
 #define CURRENT_MOTOR_TIMEOUT_MS                  (250)
 #define MOTOR_SELECTED                            (2)
 #define GRIND_TIMEOUT_SEC                         (600)
-#define CUTOFF_CURRENT_AMPS                       (4.0f)
+#define CUTOFF_CURRENT_AMPS                       (4.7f)
 #define NO_GRIND_CURRENT_AMPS                     (0.6f)
 #define GRIND_ATTEMPS                             (1)
 #define OFFSET_FACTOR_CORRECTION                  (0.05f)
@@ -81,7 +81,6 @@
 #define SPEED_PID_KP_HIGH                         (0.008)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
 #define SPEED_ERPM_RAMP_LOW                       (5000.0f)
-#define KP_TIMES_CONSTANT                         (1.05f)
 #define SYSTICK_ZERO_VALUE                        (0.0f)
 #define ZERO_GRIND_ATTEMPS                        (0)
 #define SPEED_THREAD_STACK_SIZE                   (1024)
@@ -109,14 +108,11 @@
 #define PIN_13                                    (13)
 #define PIN_14                                    (14)
 #define PIN_15                                    (15)
-#define ANTISTALL_RPM_ERROR_TH                    150.0
-#define ANTISTALL_RPM_DROP_TH                     -1000.0
-#define ANTISTALL_BOOST_CURRENT                   6.0
-#define ANTISTALL_BOOST_TIME_MS                   120
-#define ANTISTALL_COOLDOWN_MS                     300
-
-#define ANTISTALL_ARM_ERROR_RPM                   150.0
-#define ANTISTALL_ARM_TIME_MS                     100
+#define STALL_RPM_ERROR_TH                        300.0f
+#define STALL_CURRENT_TH_AMPS                     3.7f
+#define STALL_BOOST_AMPS                          12.0f
+#define STALL_BOOST_MS                            200
+#define STALL_COOLDOWN_MS                         500
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
@@ -139,8 +135,6 @@ static float read_buffer;
 
 static volatile bool safety_calibration = false;
 static volatile bool is_erpm_done = false;
-static volatile bool is_pid_kd_change_up = false;
-static volatile bool is_pid_kd_change_down = false;
 static volatile bool is_momentary_position_status = false;
 static volatile bool store_minimum_value = false;
 static volatile bool is_encoder_done = false;
@@ -152,9 +146,7 @@ static bool is_motor_grinding_enable = true;
 static bool is_in_maximum_detection = false;
 static bool change_erpm_ramp_pid_on_state = false;
 static bool change_erpm_ramp_pid_mom_state = false;
-static bool is_about_to_stall = false;
-static bool is_kp_high = false;
-static bool is_kp_low = false;
+static float original_current_max = -1.0f;
 
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
@@ -517,21 +509,37 @@ static void set_erpm_ramp_pid_response(void) {
 	is_erpm_done = true;
 }
 
-static void set_pid_kp_constant(void) {
+static void enable_stall_current_boost(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
-
 	*mcconf = *mc_interface_get_configuration();
 	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
 	*mcconf_previous = *mcconf;
 
-	if (is_about_to_stall) {
-		mcconf->s_pid_kp = SPEED_PID_KP_HIGH * KP_TIMES_CONSTANT;
-		is_kp_high = true;
-	} else {
-		mcconf->s_pid_kp = SPEED_PID_KP_HIGH;
-		is_kp_low = true;
+	if (original_current_max < 0.0f) {
+		original_current_max = mcconf->l_current_max;
 	}
 
+	if (STALL_BOOST_AMPS > original_current_max) {
+		mcconf->l_current_max = STALL_BOOST_AMPS;
+		mc_interface_set_configuration(mcconf_previous);
+		mc_interface_set_configuration(mcconf);
+	}
+
+	mempools_free_mcconf(mcconf);
+	mempools_free_mcconf(mcconf_previous);
+}
+
+static void disable_stall_current_boost(void) {
+	if (original_current_max < 0.0f) {
+		return;
+	}
+
+	mc_configuration* mcconf = mempools_alloc_mcconf();
+	*mcconf = *mc_interface_get_configuration();
+	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
+	*mcconf_previous = *mcconf;
+
+	mcconf->l_current_max = original_current_max;
 	mc_interface_set_configuration(mcconf_previous);
 	mc_interface_set_configuration(mcconf);
 
@@ -669,16 +677,12 @@ static THD_FUNCTION(speed_thread, arg) {
 
 	static systime_t overload_time_in_systicks = SYSTICK_ZERO_VALUE;
 	static systime_t no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
-	static systime_t antistall_start_time = 0;
-	static systime_t antistall_cooldown_time = 0;
-	static systime_t last_time = 0;
-	static systime_t stable_time = 0;
+	static systime_t stall_boost_start_time = 0;
+	static systime_t stall_boost_cooldown_time = 0;
 
 	static uint8_t grind_attemp = ZERO_GRIND_ATTEMPS;
 
-	static float last_rpm = 0.0;
-	static bool antistall_active = false;
-	static bool antistall_armed = false;
+	static bool stall_boost_active = false;
 
 	for (;;) {
 		// TODO: Add a safety condition, just to avoid undesired behavior when main switch is disconnected.
@@ -689,6 +693,11 @@ static THD_FUNCTION(speed_thread, arg) {
 
 			if (switch_positions_in_volts > SWITCH_STOP_POSITION_IN_VOLTS) {
 				if (is_stop_state) {
+					if (stall_boost_active) {
+						disable_stall_current_boost();
+						stall_boost_active = false;
+					}
+					original_current_max = -1.0f;
 					mc_interface_release_motor();
 					is_stop_state = false;
 					is_momentary_position_status = false;
@@ -700,10 +709,6 @@ static THD_FUNCTION(speed_thread, arg) {
 				safety_calibration = true;
 				is_erpm_done = false;
 				is_encoder_done = false;
-
-				// Reset anti-stall state
-				antistall_armed = false;
-				stable_time = 0;
 			}
 
 			if ((switch_positions_in_volts > SWITCH_ON_POSITION_1_IN_VOLTS) && (switch_positions_in_volts < SWITCH_ON_POSITION_2_IN_VOLTS) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable) {
@@ -714,71 +719,28 @@ static THD_FUNCTION(speed_thread, arg) {
 					set_erpm_ramp_pid_response();
 				}
 
-				is_about_to_stall = false;
-				set_pid_kp_constant();
-
 				timeout_reset();
 
 				float rpm_actual = mc_interface_get_rpm();
+				float rpm_error = speed_erpm_setpoint - rpm_actual;
+				float current_actual = mc_interface_get_tot_current();
 				systime_t now = chVTGetSystemTimeX();
 
-				float dt = ST2MS(now - last_time) / 1000.0;
+				bool cooldown_ok = (chVTTimeElapsedSinceX(stall_boost_cooldown_time) > MS2ST(STALL_COOLDOWN_MS));
 
-				if (dt <= 0.0) {
-					dt = 0.001;
-				}
-
-				float rpm_derivative = (rpm_actual - last_rpm) / dt;
-
-				last_rpm = rpm_actual;
-				last_time = now;
-
-				float rpm_error_abs = fabsf(speed_erpm_setpoint - rpm_actual);
-
-				// preparing the anti-stall process.
-				if (rpm_error_abs < ANTISTALL_ARM_ERROR_RPM) {
-					if (stable_time == 0) {
-						stable_time = now;
-					} else {
-						if (chVTTimeElapsedSinceX(stable_time) > MS2ST(ANTISTALL_ARM_TIME_MS)) {
-							antistall_armed = true;
-						}
+				if (stall_boost_active) {
+					if (chVTTimeElapsedSinceX(stall_boost_start_time) > MS2ST(STALL_BOOST_MS)) {
+						disable_stall_current_boost();
+						stall_boost_active = false;
+						stall_boost_cooldown_time = now;
 					}
-				} else {
-					stable_time = 0;
-					antistall_armed = false;
+				} else if (cooldown_ok && rpm_error > STALL_RPM_ERROR_TH && current_actual > STALL_CURRENT_TH_AMPS) {
+					enable_stall_current_boost();
+					stall_boost_active = true;
+					stall_boost_start_time = now;
 				}
 
-				bool cooldown_ok = (chVTTimeElapsedSinceX(antistall_cooldown_time) > MS2ST(ANTISTALL_COOLDOWN_MS));
-
-				// Send a current command for boost, when the grinder is about to stall.
-				if (antistall_active) {
-					if (chVTTimeElapsedSinceX(antistall_start_time) < MS2ST(ANTISTALL_BOOST_TIME_MS)) {
-						mc_interface_set_current(ANTISTALL_BOOST_CURRENT);
-					} else {
-						antistall_active = false;
-						antistall_cooldown_time = now;
-					}
-				}
-
-				// Detect stall ONLY if armed.. check this condition.
-				float rpm_error = speed_erpm_setpoint - rpm_actual;
-
-				if (!antistall_active && cooldown_ok && antistall_armed) {
-					if ((rpm_error > ANTISTALL_RPM_ERROR_TH) &&
-						(rpm_derivative < ANTISTALL_RPM_DROP_TH)) {
-						antistall_active = true;
-						antistall_start_time = now;
-
-						is_about_to_stall = true;
-						set_pid_kp_constant();
-					}
-				}
-
-				// apply the speed control here. for a normal grinding.
-				if (!antistall_active) {
-					mc_interface_set_pid_speed(speed_erpm_setpoint);
-				}
+				mc_interface_set_pid_speed(speed_erpm_setpoint);
 
 				if (mc_interface_get_tot_current() < NO_GRIND_CURRENT_AMPS) {
 					if (no_grind_time_in_systicks == SYSTICK_ZERO_VALUE) {
@@ -828,9 +790,6 @@ static THD_FUNCTION(speed_thread, arg) {
 			}
 
 			if ((mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS)) {
-				is_about_to_stall = true;
-				set_pid_kp_constant();
-
 				if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
 					overload_time_in_systicks = chVTGetSystemTime();
 				} else {
