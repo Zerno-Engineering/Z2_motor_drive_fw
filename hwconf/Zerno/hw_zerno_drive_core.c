@@ -112,6 +112,7 @@
 #define STALL_CURRENT_TH_AMPS                     3.7f
 #define STALL_BOOST_AMPS                          10.0f
 #define STALL_KP_MULTIPLIER                       3.0f
+#define STALL_KD_MULTIPLIER                       20.0f
 #define STALL_BOOST_MS                            200
 #define STALL_COOLDOWN_MS                         500
 
@@ -149,6 +150,7 @@ static bool change_erpm_ramp_pid_on_state = false;
 static bool change_erpm_ramp_pid_mom_state = false;
 static float original_current_max = -1.0f;
 static float original_kp = -1.0f;
+static float original_kd = -1.0f;
 static uint32_t stall_event_count = 0;
 
 static uint8_t is_calibration_done = 0;
@@ -531,11 +533,15 @@ static void enable_stall_boost(void) {
 	if (original_kp < 0.0f) {
 		original_kp = mcconf->s_pid_kp;
 	}
+	if (original_kd < 0.0f) {
+		original_kd = mcconf->s_pid_kd;
+	}
 
 	if (STALL_BOOST_AMPS > original_current_max) {
 		mcconf->l_current_max = STALL_BOOST_AMPS;
 	}
 	mcconf->s_pid_kp = original_kp * STALL_KP_MULTIPLIER;
+	mcconf->s_pid_kd = original_kd * STALL_KD_MULTIPLIER;
 
 	stall_event_count++;
 
@@ -547,7 +553,7 @@ static void enable_stall_boost(void) {
 }
 
 static void disable_stall_boost(void) {
-	if (original_current_max < 0.0f && original_kp < 0.0f) {
+	if (original_current_max < 0.0f && original_kp < 0.0f && original_kd < 0.0f) {
 		return;
 	}
 
@@ -561,6 +567,9 @@ static void disable_stall_boost(void) {
 	}
 	if (original_kp >= 0.0f) {
 		mcconf->s_pid_kp = original_kp;
+	}
+	if (original_kd >= 0.0f) {
+		mcconf->s_pid_kd = original_kd;
 	}
 
 	mc_interface_set_configuration(mcconf_previous);
@@ -729,6 +738,7 @@ static THD_FUNCTION(speed_thread, arg) {
 					}
 					original_current_max = -1.0f;
 					original_kp = -1.0f;
+					original_kd = -1.0f;
 					mc_interface_release_motor();
 					is_stop_state = false;
 					is_momentary_position_status = false;
