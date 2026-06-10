@@ -111,7 +111,7 @@
 #define STALL_RPM_ERROR_TH                        300.0f
 #define STALL_CURRENT_TH_AMPS                     3.7f
 #define STALL_BOOST_AMPS                          10.0f
-#define STALL_KP_MULTIPLIER                       3.5f
+#define STALL_KP_MULTIPLIER                       2.5f
 #define STALL_BOOST_MS                            200
 #define STALL_COOLDOWN_MS                         500
 
