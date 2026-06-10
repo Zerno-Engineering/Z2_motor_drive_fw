@@ -110,7 +110,8 @@
 #define PIN_15                                    (15)
 #define STALL_RPM_ERROR_TH                        300.0f
 #define STALL_CURRENT_TH_AMPS                     3.7f
-#define STALL_BOOST_AMPS                          12.0f
+#define STALL_BOOST_AMPS                          10.0f
+#define STALL_KP_MULTIPLIER                       3.5f
 #define STALL_BOOST_MS                            200
 #define STALL_COOLDOWN_MS                         500
 
@@ -147,6 +148,7 @@ static bool is_in_maximum_detection = false;
 static bool change_erpm_ramp_pid_on_state = false;
 static bool change_erpm_ramp_pid_mom_state = false;
 static float original_current_max = -1.0f;
+static float original_kp = -1.0f;
 
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
@@ -509,7 +511,7 @@ static void set_erpm_ramp_pid_response(void) {
 	is_erpm_done = true;
 }
 
-static void enable_stall_current_boost(void) {
+static void enable_stall_boost(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
 	*mcconf = *mc_interface_get_configuration();
 	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
@@ -518,19 +520,24 @@ static void enable_stall_current_boost(void) {
 	if (original_current_max < 0.0f) {
 		original_current_max = mcconf->l_current_max;
 	}
+	if (original_kp < 0.0f) {
+		original_kp = mcconf->s_pid_kp;
+	}
 
 	if (STALL_BOOST_AMPS > original_current_max) {
 		mcconf->l_current_max = STALL_BOOST_AMPS;
-		mc_interface_set_configuration(mcconf_previous);
-		mc_interface_set_configuration(mcconf);
 	}
+	mcconf->s_pid_kp = original_kp * STALL_KP_MULTIPLIER;
+
+	mc_interface_set_configuration(mcconf_previous);
+	mc_interface_set_configuration(mcconf);
 
 	mempools_free_mcconf(mcconf);
 	mempools_free_mcconf(mcconf_previous);
 }
 
-static void disable_stall_current_boost(void) {
-	if (original_current_max < 0.0f) {
+static void disable_stall_boost(void) {
+	if (original_current_max < 0.0f && original_kp < 0.0f) {
 		return;
 	}
 
@@ -539,7 +546,13 @@ static void disable_stall_current_boost(void) {
 	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
 	*mcconf_previous = *mcconf;
 
-	mcconf->l_current_max = original_current_max;
+	if (original_current_max >= 0.0f) {
+		mcconf->l_current_max = original_current_max;
+	}
+	if (original_kp >= 0.0f) {
+		mcconf->s_pid_kp = original_kp;
+	}
+
 	mc_interface_set_configuration(mcconf_previous);
 	mc_interface_set_configuration(mcconf);
 
@@ -694,10 +707,11 @@ static THD_FUNCTION(speed_thread, arg) {
 			if (switch_positions_in_volts > SWITCH_STOP_POSITION_IN_VOLTS) {
 				if (is_stop_state) {
 					if (stall_boost_active) {
-						disable_stall_current_boost();
+						disable_stall_boost();
 						stall_boost_active = false;
 					}
 					original_current_max = -1.0f;
+					original_kp = -1.0f;
 					mc_interface_release_motor();
 					is_stop_state = false;
 					is_momentary_position_status = false;
@@ -730,12 +744,12 @@ static THD_FUNCTION(speed_thread, arg) {
 
 				if (stall_boost_active) {
 					if (chVTTimeElapsedSinceX(stall_boost_start_time) > MS2ST(STALL_BOOST_MS)) {
-						disable_stall_current_boost();
+						disable_stall_boost();
 						stall_boost_active = false;
 						stall_boost_cooldown_time = now;
 					}
 				} else if (cooldown_ok && rpm_error > STALL_RPM_ERROR_TH && current_actual > STALL_CURRENT_TH_AMPS) {
-					enable_stall_current_boost();
+					enable_stall_boost();
 					stall_boost_active = true;
 					stall_boost_start_time = now;
 				}
