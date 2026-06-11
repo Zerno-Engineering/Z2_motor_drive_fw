@@ -786,6 +786,7 @@ static THD_FUNCTION(speed_thread, arg) {
 					enable_stall_boost();
 					stall_boost_active = true;
 					stall_boost_start_time = now;
+					overload_time_in_systicks = SYSTICK_ZERO_VALUE;
 				}
 
 				mc_interface_set_pid_speed(speed_erpm_setpoint);
@@ -808,6 +809,12 @@ static THD_FUNCTION(speed_thread, arg) {
 			}
 
 			if ((switch_positions_in_volts < SWITCH_MOMENTARY_POSITION_IN_VOLTS)) {
+				if (stall_boost_active) {
+					disable_stall_boost();
+					stall_boost_active = false;
+					overload_time_in_systicks = SYSTICK_ZERO_VALUE;
+				}
+
 				if (safety_calibration) {
 					change_erpm_ramp_pid_mom_state = true;
 					change_erpm_ramp_pid_on_state = false;
