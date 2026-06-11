@@ -874,9 +874,12 @@ static THD_FUNCTION(encoder_thread, arg) {
 		if (!is_momentary_position_status) {
 			write_adc_value_in_volts();
 
-			read_adc_value_in_volts();
+			if (circular_counter > 0) {
+				read_adc_value_in_volts();
+			}
 
-			diff = fabs(circular_buffer_in_volts[head] - read_buffer);
+			uint8_t last_written = (head == 0) ? (SAMPLES - 1) : (head - 1);
+			diff = fabs(circular_buffer_in_volts[last_written] - read_buffer);
 
 			if (diff < THRESHOLD_VALUE) {
 				get_encoder_sample_in_volts = read_buffer - OFFSET_FACTOR_CORRECTION;
@@ -898,7 +901,11 @@ static THD_FUNCTION(encoder_thread, arg) {
 				store_minimum_value = false;
 			}
 
-			knob_index = roundf(((encoder_calibrated_value_in_volts - encoder_min_calibrated_value) / steps));
+			if (steps > 0.0f) {
+				knob_index = roundf(((encoder_calibrated_value_in_volts - encoder_min_calibrated_value) / steps));
+			} else {
+				knob_index = MIN_KNOB_INDEX;
+			}
 
 			if (knob_index < MIN_KNOB_INDEX) {
 				knob_index = MIN_KNOB_INDEX;
