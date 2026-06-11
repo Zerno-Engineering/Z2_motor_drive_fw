@@ -44,7 +44,7 @@
 #define CURRENT_MOTOR_TIMEOUT_MS                  (250)
 #define MOTOR_SELECTED                            (2)
 #define GRIND_TIMEOUT_SEC                         (600)
-#define CUTOFF_CURRENT_AMPS                       (4.7f)
+#define CUTOFF_CURRENT_AMPS                       (4.0f)
 #define NO_GRIND_CURRENT_AMPS                     (0.6f)
 #define GRIND_ATTEMPS                             (1)
 #define OFFSET_FACTOR_CORRECTION                  (0.05f)
