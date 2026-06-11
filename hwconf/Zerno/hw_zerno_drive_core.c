@@ -523,6 +523,7 @@ static void set_erpm_ramp_pid_response(void) {
 
 static void enable_stall_boost(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
+
 	*mcconf = *mc_interface_get_configuration();
 	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
 	*mcconf_previous = *mcconf;
@@ -530,9 +531,11 @@ static void enable_stall_boost(void) {
 	if (original_current_max < 0.0f) {
 		original_current_max = mcconf->l_current_max;
 	}
+
 	if (original_kp < 0.0f) {
 		original_kp = mcconf->s_pid_kp;
 	}
+
 	if (original_kd < 0.0f) {
 		original_kd = mcconf->s_pid_kd;
 	}
@@ -540,6 +543,7 @@ static void enable_stall_boost(void) {
 	if (STALL_BOOST_AMPS > original_current_max) {
 		mcconf->l_current_max = STALL_BOOST_AMPS;
 	}
+
 	mcconf->s_pid_kp = original_kp * STALL_KP_MULTIPLIER;
 	mcconf->s_pid_kd = original_kd * STALL_KD_MULTIPLIER;
 
@@ -553,7 +557,7 @@ static void enable_stall_boost(void) {
 }
 
 static void disable_stall_boost(void) {
-	if (original_current_max < 0.0f && original_kp < 0.0f && original_kd < 0.0f) {
+	if ((original_current_max < 0.0f) && (original_kp < 0.0f) && (original_kd < 0.0f)) {
 		return;
 	}
 
@@ -565,9 +569,11 @@ static void disable_stall_boost(void) {
 	if (original_current_max >= 0.0f) {
 		mcconf->l_current_max = original_current_max;
 	}
+
 	if (original_kp >= 0.0f) {
 		mcconf->s_pid_kp = original_kp;
 	}
+
 	if (original_kd >= 0.0f) {
 		mcconf->s_pid_kd = original_kd;
 	}
@@ -736,6 +742,7 @@ static THD_FUNCTION(speed_thread, arg) {
 						disable_stall_boost();
 						stall_boost_active = false;
 					}
+
 					original_current_max = -1.0f;
 					original_kp = -1.0f;
 					original_kd = -1.0f;
@@ -764,7 +771,7 @@ static THD_FUNCTION(speed_thread, arg) {
 
 				float rpm_actual = mc_interface_get_rpm();
 				float rpm_error = speed_erpm_setpoint - rpm_actual;
-				float current_actual = mc_interface_get_tot_current();
+				float current_actual = mc_interface_get_tot_current_filtered();
 				systime_t now = chVTGetSystemTimeX();
 
 				bool cooldown_ok = (chVTTimeElapsedSinceX(stall_boost_cooldown_time) > MS2ST(STALL_COOLDOWN_MS));
@@ -775,7 +782,7 @@ static THD_FUNCTION(speed_thread, arg) {
 						stall_boost_active = false;
 						stall_boost_cooldown_time = now;
 					}
-				} else if (cooldown_ok && rpm_error > STALL_RPM_ERROR_TH && current_actual > STALL_CURRENT_TH_AMPS) {
+				} else if (cooldown_ok && (rpm_error > STALL_RPM_ERROR_TH) && (current_actual > STALL_CURRENT_TH_AMPS)) {
 					enable_stall_boost();
 					stall_boost_active = true;
 					stall_boost_start_time = now;
