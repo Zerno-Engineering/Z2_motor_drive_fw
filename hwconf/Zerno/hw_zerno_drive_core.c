@@ -77,8 +77,8 @@
 #define CALIBRATION_CURRENT                       (2.0f)
 #define CALIBRATION_RATIO_VALUE                   (0.0f)
 #define CALIBRATION_OFFSET_VALUE                  (0.0f)
-#define SPEED_PID_KP_LOW                          (0.008)
-#define SPEED_PID_KP_HIGH                         (0.008)
+#define SPEED_PID_KP_LOW                          (0.012f)
+#define SPEED_PID_KP_HIGH                         (0.012f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
 #define SPEED_ERPM_RAMP_LOW                       (5000.0f)
 #define SYSTICK_ZERO_VALUE                        (0.0f)
@@ -111,7 +111,7 @@
 #define STALL_RPM_ERROR_TH                        300.0f
 #define STALL_CURRENT_TH_AMPS                     3.7f
 #define STALL_BOOST_AMPS                          10.0f
-#define STALL_KP_MULTIPLIER                       3.0f
+#define STALL_KP_MULTIPLIER                       2.33f
 #define STALL_KD_MULTIPLIER                       20.0f
 #define STALL_BOOST_MS                            200
 #define STALL_COOLDOWN_MS                         500
