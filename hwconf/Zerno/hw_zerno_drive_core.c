@@ -46,7 +46,6 @@
 #define GRIND_TIMEOUT_SEC                         (600)
 #define CUTOFF_CURRENT_AMPS                       (4.0f)
 #define NO_GRIND_CURRENT_AMPS                     (0.6f)
-#define GRIND_ATTEMPS                             (1)
 #define OFFSET_FACTOR_CORRECTION                  (0.05f)
 #define SPEED_MIN_ERPM                            (800.0f)
 #define SPEED_ERPM_STEP                           (200.0f)
@@ -77,12 +76,11 @@
 #define CALIBRATION_CURRENT                       (2.0f)
 #define CALIBRATION_RATIO_VALUE                   (0.0f)
 #define CALIBRATION_OFFSET_VALUE                  (0.0f)
-#define SPEED_PID_KP_LOW                          (0.012f)
-#define SPEED_PID_KP_HIGH                         (0.012f)
+#define SPEED_PID_KP_LOW                          (0.008f)
+#define SPEED_PID_KP_HIGH                         (0.008f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
 #define SPEED_ERPM_RAMP_LOW                       (5000.0f)
 #define SYSTICK_ZERO_VALUE                        (0.0f)
-#define ZERO_GRIND_ATTEMPS                        (0)
 #define SPEED_THREAD_STACK_SIZE                   (1024)
 #define ENCODER_THREAD_STACK_SIZE                 (1024)
 #define SAMPLES                                   (15)
@@ -108,13 +106,10 @@
 #define PIN_13                                    (13)
 #define PIN_14                                    (14)
 #define PIN_15                                    (15)
-#define STALL_RPM_ERROR_TH                        300.0f
-#define STALL_CURRENT_TH_AMPS                     3.7f
-#define STALL_BOOST_AMPS                          10.0f
-#define STALL_KP_MULTIPLIER                       2.33f
-#define STALL_KD_MULTIPLIER                       20.0f
-#define STALL_BOOST_MS                            200
-#define STALL_COOLDOWN_MS                         500
+#define GRIND_CURRENT_DEFAULT_TH_AMPS             5.0f // this would be set to 2.5A
+#define GRIND_CURRENT_HYSTERESIS_AMPS             0.3f
+#define GRIND_PID_DEFAULT_KP_MULTIPLIER           1.0f
+#define GRIND_PID_DEFAULT_KD_MULTIPLIER           1.0f
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
@@ -143,15 +138,17 @@ static volatile bool is_encoder_done = false;
 static volatile bool i2c_running = false;
 
 static bool is_stop_state = false;
-static bool is_motor_stalled_fault = false;
 static bool is_motor_grinding_enable = true;
 static bool is_in_maximum_detection = false;
 static bool change_erpm_ramp_pid_on_state = false;
 static bool change_erpm_ramp_pid_mom_state = false;
-static float original_current_max = -1.0f;
-static float original_kp = -1.0f;
-static float original_kd = -1.0f;
-static uint32_t stall_event_count = 0;
+
+static float grind_current_th_amps = GRIND_CURRENT_DEFAULT_TH_AMPS;
+static float grind_kp_multiplier = GRIND_PID_DEFAULT_KP_MULTIPLIER;
+static float grind_kd_multiplier = GRIND_PID_DEFAULT_KD_MULTIPLIER;
+static float grind_original_kp = -1.0f;
+static float grind_original_kd = -1.0f;
+static bool grind_pid_active = false;
 
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
@@ -171,7 +168,10 @@ static float main_switch_adc_value(void);
 static bool is_pfc_ok(void);
 
 static void terminal_print_info(int argc, const char** argv);
-static void terminal_stall_events(int argc, const char** argv);
+static void enable_grind_pid(void);
+static void disable_grind_pid(void);
+static void terminal_set_grind_pid(int argc, const char** argv);
+static void terminal_get_grind_pid(int argc, const char** argv);
 
 static const float erpm_lut[14] = {
 	1000.0,
@@ -290,10 +290,16 @@ void hw_init_gpio(void) {
 		terminal_print_info);
 
 	terminal_register_command_callback(
-		"stall_events",
-		"Print the number of times the stall prevention boost has fired",
+		"set_grind_pid",
+		"Set grinding PID params: set_grind_pid <current_th_amps> <kp_multiplier> <kd_multiplier>",
+		"[current_th] [kp_mult] [kd_mult]",
+		terminal_set_grind_pid);
+
+	terminal_register_command_callback(
+		"get_grind_pid",
+		"Print current grinding PID parameters and state",
 		0,
-		terminal_stall_events);
+		terminal_get_grind_pid);
 }
 
 void hw_setup_adc_channels(void) {
@@ -521,33 +527,17 @@ static void set_erpm_ramp_pid_response(void) {
 	is_erpm_done = true;
 }
 
-static void enable_stall_boost(void) {
+static void enable_grind_pid(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
-
 	*mcconf = *mc_interface_get_configuration();
 	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
 	*mcconf_previous = *mcconf;
 
-	if (original_current_max < 0.0f) {
-		original_current_max = mcconf->l_current_max;
-	}
+	grind_original_kp = mcconf->s_pid_kp;
+	grind_original_kd = mcconf->s_pid_kd;
 
-	if (original_kp < 0.0f) {
-		original_kp = mcconf->s_pid_kp;
-	}
-
-	if (original_kd < 0.0f) {
-		original_kd = mcconf->s_pid_kd;
-	}
-
-	if (STALL_BOOST_AMPS > original_current_max) {
-		mcconf->l_current_max = STALL_BOOST_AMPS;
-	}
-
-	mcconf->s_pid_kp = original_kp * STALL_KP_MULTIPLIER;
-	mcconf->s_pid_kd = original_kd * STALL_KD_MULTIPLIER;
-
-	stall_event_count++;
+	mcconf->s_pid_kp = grind_original_kp * grind_kp_multiplier;
+	mcconf->s_pid_kd = grind_original_kd * grind_kd_multiplier;
 
 	mc_interface_set_configuration(mcconf_previous);
 	mc_interface_set_configuration(mcconf);
@@ -556,8 +546,8 @@ static void enable_stall_boost(void) {
 	mempools_free_mcconf(mcconf_previous);
 }
 
-static void disable_stall_boost(void) {
-	if ((original_current_max < 0.0f) && (original_kp < 0.0f) && (original_kd < 0.0f)) {
+static void disable_grind_pid(void) {
+	if (grind_original_kp < 0.0f && grind_original_kd < 0.0f) {
 		return;
 	}
 
@@ -566,17 +556,16 @@ static void disable_stall_boost(void) {
 	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
 	*mcconf_previous = *mcconf;
 
-	if (original_current_max >= 0.0f) {
-		mcconf->l_current_max = original_current_max;
+	if (grind_original_kp >= 0.0f) {
+		mcconf->s_pid_kp = grind_original_kp;
 	}
 
-	if (original_kp >= 0.0f) {
-		mcconf->s_pid_kp = original_kp;
+	if (grind_original_kd >= 0.0f) {
+		mcconf->s_pid_kd = grind_original_kd;
 	}
 
-	if (original_kd >= 0.0f) {
-		mcconf->s_pid_kd = original_kd;
-	}
+	grind_original_kp = -1.0f;
+	grind_original_kd = -1.0f;
 
 	mc_interface_set_configuration(mcconf_previous);
 	mc_interface_set_configuration(mcconf);
@@ -584,6 +573,7 @@ static void disable_stall_boost(void) {
 	mempools_free_mcconf(mcconf);
 	mempools_free_mcconf(mcconf_previous);
 }
+
 static void motor_encoder_calibrate_offset(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
 
@@ -675,11 +665,37 @@ float get_pfc_temp(void) {
 	return temp_pfc_filtered;
 }
 
-static void terminal_stall_events(int argc, const char** argv) {
+static void terminal_set_grind_pid(int argc, const char** argv) {
+	if (argc == 4) {
+		float th = strtof(argv[1], NULL);
+		float kp_mult = strtof(argv[2], NULL);
+		float kd_mult = strtof(argv[3], NULL);
+
+		if (th <= 0.0f || kp_mult <= 0.0f || kd_mult <= 0.0f) {
+			commands_printf("Error: all values must be > 0");
+			return;
+		}
+
+		grind_current_th_amps = th;
+		grind_kp_multiplier = kp_mult;
+		grind_kd_multiplier = kd_mult;
+
+		commands_printf("Grind PID set: threshold=%.2f A, kp_mult=%.3f, kd_mult=%.3f",
+			(double)grind_current_th_amps, (double)grind_kp_multiplier, (double)grind_kd_multiplier);
+	} else {
+		commands_printf("Usage: set_grind_pid <current_th_amps> <kp_multiplier> <kd_multiplier>");
+		commands_printf("Example: set_grind_pid 5.0 0.5 2.0");
+	}
+}
+
+static void terminal_get_grind_pid(int argc, const char** argv) {
 	(void)argc;
 	(void)argv;
 
-	commands_printf("Stall boost events: %u", stall_event_count);
+	commands_printf("Grind PID threshold: %.2f A", (double)grind_current_th_amps);
+	commands_printf("Grind PID Kp multiplier: %.3f", (double)grind_kp_multiplier);
+	commands_printf("Grind PID Kd multiplier: %.3f", (double)grind_kd_multiplier);
+	commands_printf("Grind PID active: %s", grind_pid_active ? "YES" : "NO");
 }
 
 static void terminal_print_info(int argc, const char** argv) {
@@ -722,12 +738,6 @@ static THD_FUNCTION(speed_thread, arg) {
 
 	static systime_t overload_time_in_systicks = SYSTICK_ZERO_VALUE;
 	static systime_t no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
-	static systime_t stall_boost_start_time = 0;
-	static systime_t stall_boost_cooldown_time = 0;
-
-	static uint8_t grind_attemp = ZERO_GRIND_ATTEMPS;
-
-	static bool stall_boost_active = false;
 
 	for (;;) {
 		// TODO: Add a safety condition, just to avoid undesired behavior when main switch is disconnected.
@@ -738,18 +748,14 @@ static THD_FUNCTION(speed_thread, arg) {
 
 			if (switch_positions_in_volts > SWITCH_STOP_POSITION_IN_VOLTS) {
 				if (is_stop_state) {
-					if (stall_boost_active) {
-						disable_stall_boost();
-						stall_boost_active = false;
+					if (grind_pid_active) {
+						disable_grind_pid();
+						grind_pid_active = false;
 					}
 
-					original_current_max = -1.0f;
-					original_kp = -1.0f;
-					original_kd = -1.0f;
 					mc_interface_release_motor();
 					is_stop_state = false;
 					is_momentary_position_status = false;
-					is_motor_stalled_fault = false;
 					is_motor_grinding_enable = true;
 					no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
 				}
@@ -759,7 +765,7 @@ static THD_FUNCTION(speed_thread, arg) {
 				is_encoder_done = false;
 			}
 
-			if ((switch_positions_in_volts > SWITCH_ON_POSITION_1_IN_VOLTS) && (switch_positions_in_volts < SWITCH_ON_POSITION_2_IN_VOLTS) && is_calibration_done && !is_motor_stalled_fault && is_motor_grinding_enable) {
+			if ((switch_positions_in_volts > SWITCH_ON_POSITION_1_IN_VOLTS) && (switch_positions_in_volts < SWITCH_ON_POSITION_2_IN_VOLTS) && is_calibration_done && is_motor_grinding_enable) {
 				change_erpm_ramp_pid_mom_state = false;
 				change_erpm_ramp_pid_on_state = true;
 
@@ -769,24 +775,15 @@ static THD_FUNCTION(speed_thread, arg) {
 
 				timeout_reset();
 
-				float rpm_actual = mc_interface_get_rpm();
-				float rpm_error = speed_erpm_setpoint - rpm_actual;
 				float current_actual = mc_interface_get_tot_current_filtered();
-				systime_t now = chVTGetSystemTimeX();
 
-				bool cooldown_ok = (chVTTimeElapsedSinceX(stall_boost_cooldown_time) > MS2ST(STALL_COOLDOWN_MS));
-
-				if (stall_boost_active) {
-					if (chVTTimeElapsedSinceX(stall_boost_start_time) > MS2ST(STALL_BOOST_MS)) {
-						disable_stall_boost();
-						stall_boost_active = false;
-						stall_boost_cooldown_time = now;
-					}
-				} else if (cooldown_ok && (rpm_error > STALL_RPM_ERROR_TH) && (current_actual > STALL_CURRENT_TH_AMPS)) {
-					enable_stall_boost();
-					stall_boost_active = true;
-					stall_boost_start_time = now;
-					overload_time_in_systicks = SYSTICK_ZERO_VALUE;
+				// Grinding current PID adaptation: adjust Kp/Kd when motor hits high load
+				if (!grind_pid_active && current_actual >= grind_current_th_amps) {
+					enable_grind_pid();
+					grind_pid_active = true;
+				} else if (grind_pid_active && current_actual < (grind_current_th_amps - GRIND_CURRENT_HYSTERESIS_AMPS)) {
+					disable_grind_pid();
+					grind_pid_active = false;
 				}
 
 				mc_interface_set_pid_speed(speed_erpm_setpoint);
@@ -809,10 +806,9 @@ static THD_FUNCTION(speed_thread, arg) {
 			}
 
 			if ((switch_positions_in_volts < SWITCH_MOMENTARY_POSITION_IN_VOLTS)) {
-				if (stall_boost_active) {
-					disable_stall_boost();
-					stall_boost_active = false;
-					overload_time_in_systicks = SYSTICK_ZERO_VALUE;
+				if (grind_pid_active) {
+					disable_grind_pid();
+					grind_pid_active = false;
 				}
 
 				if (safety_calibration) {
@@ -845,21 +841,12 @@ static THD_FUNCTION(speed_thread, arg) {
 			}
 
 			if ((mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS)) {
-				if (!stall_boost_active) {
-					if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
-						overload_time_in_systicks = chVTGetSystemTime();
-					} else {
-						if (chVTTimeElapsedSinceX(overload_time_in_systicks) > MS2ST(CURRENT_MOTOR_TIMEOUT_MS)) {
-							mc_interface_release_motor();
-							grind_attemp++;
-
-							if (grind_attemp == GRIND_ATTEMPS) {
-								is_motor_stalled_fault = true;
-								grind_attemp = ZERO_GRIND_ATTEMPS;
-							}
-
-							overload_time_in_systicks = SYSTICK_ZERO_VALUE;
-						}
+				if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
+					overload_time_in_systicks = chVTGetSystemTime();
+				} else {
+					if (chVTTimeElapsedSinceX(overload_time_in_systicks) > MS2ST(CURRENT_MOTOR_TIMEOUT_MS)) {
+						mc_interface_release_motor();
+						overload_time_in_systicks = SYSTICK_ZERO_VALUE;
 					}
 				}
 			} else {
