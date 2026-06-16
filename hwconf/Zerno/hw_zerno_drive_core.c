@@ -112,7 +112,7 @@
 #define GRIND_PID_DEFAULT_KP_MULTIPLIER           3.5f
 #define GRIND_PID_DEFAULT_KD_MULTIPLIER           20.0f
 #define GRIND_ENGAGE_DELAY_MS                     200
-#define GRIND_RELEASE_DELAY_MS                    400
+#define GRIND_RELEASE_DELAY_MS                    200
 #define GRIND_PID_RAMP_STEPS                      30   // 30 × 10 ms loop = 300 ms transition
 
 static THD_FUNCTION(speed_thread, arg);
