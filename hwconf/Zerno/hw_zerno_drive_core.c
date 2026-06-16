@@ -591,7 +591,7 @@ static void grind_pid_ramp_step(void) {
 	mcconf->s_pid_kd = kd_next;
 
 	// integrator is guaranteed zero. Restore Ki now.
-	if (grind_ramp_is_restore && (grind_original_ki >= 0.0f)) {
+	if (grind_ramp_is_restore && done && (grind_original_ki >= 0.0f)) {
 		mcconf->s_pid_ki = grind_original_ki;
 		grind_original_ki = -1.0f;
 	}
