@@ -173,7 +173,7 @@ static void knob_encoder_calibrate_offset(void);
 static void adc_get_maximum_value(void);
 static void write_adc_value_in_volts(void);
 static void read_adc_value_in_volts(void);
-static float main_switch_adc_value(void);
+
 
 static bool is_pfc_ok(void);
 
@@ -458,15 +458,6 @@ static bool is_pfc_ok(void) {
 
 /* Enable adc readings for main switch */
 
-static float main_switch_adc_value(void) {
-	static float main_switch;
-	static float main_switch_filtered;
-
-	main_switch = ADC_VOLTS(ADC_IND_EXT2);
-	UTILS_LP_FAST(main_switch_filtered, main_switch, SWITCH_FILTER_CONSTANT);
-
-	return main_switch_filtered;
-}
 
 /* Load the stored values during start-up
  *
@@ -541,7 +532,7 @@ static void set_erpm_ramp_pid_response(void) {
 }
 
 static void enable_grind_pid(void) {
-	const mc_configuration *conf = mc_interface_get_configuration();
+	volatile const mc_configuration *conf = mc_interface_get_configuration();
 	if (grind_original_kp < 0.0f) {
 		grind_original_kp = conf->s_pid_kp;
 		grind_original_kd = conf->s_pid_kd;
@@ -561,7 +552,7 @@ static void disable_grind_pid(void) {
 }
 
 static void start_grind_pid_ramp(float kp_to, float kd_to) {
-	const mc_configuration *conf = mc_interface_get_configuration();
+	volatile const mc_configuration *conf = mc_interface_get_configuration();
 	grind_kp_ramp_from = conf->s_pid_kp;
 	grind_kd_ramp_from = conf->s_pid_kd;
 	grind_kp_ramp_to = kp_to;
