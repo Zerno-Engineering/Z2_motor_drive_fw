@@ -152,6 +152,7 @@ static float grind_kp_multiplier = GRIND_PID_DEFAULT_KP_MULTIPLIER;
 static float grind_kd_multiplier = GRIND_PID_DEFAULT_KD_MULTIPLIER;
 static float grind_original_kp = -1.0f;
 static float grind_original_kd = -1.0f;
+static float grind_original_ki = -1.0f;
 static bool grind_pid_active = false;
 static float grind_kp_ramp_from = 0.0f;
 static float grind_kp_ramp_to = 0.0f;
@@ -550,6 +551,14 @@ static void disable_grind_pid(void) {
 		return;
 	}
 
+	// draining the integrator windup accumulated during grinding before the ramp starts.
+	mc_configuration* mcconf = mempools_alloc_mcconf();
+	*mcconf = *mc_interface_get_configuration();
+	grind_original_ki = mcconf->s_pid_ki;
+	mcconf->s_pid_ki = 0.0f; // a quick way to avoid erpm wind-up.
+	mc_interface_set_configuration(mcconf);
+	mempools_free_mcconf(mcconf);
+
 	grind_ramp_is_restore = true;
 	start_grind_pid_ramp(grind_original_kp, grind_original_kd);
 }
@@ -580,6 +589,13 @@ static void grind_pid_ramp_step(void) {
 	*mcconf = *mc_interface_get_configuration();
 	mcconf->s_pid_kp = kp_next;
 	mcconf->s_pid_kd = kd_next;
+
+	// integrator is guaranteed zero. Restore Ki now.
+	if (grind_ramp_is_restore && (grind_original_ki >= 0.0f)) {
+		mcconf->s_pid_ki = grind_original_ki;
+		grind_original_ki = -1.0f;
+	}
+
 	mc_interface_set_configuration(mcconf);
 	mempools_free_mcconf(mcconf);
 
@@ -597,6 +613,7 @@ static void reset_grind_pid_instant(void) {
 	grind_ramp_step = -1;
 
 	if (grind_original_kp < 0.0f) {
+		grind_original_ki = -1.0f;
 		return;
 	}
 
@@ -604,6 +621,12 @@ static void reset_grind_pid_instant(void) {
 	*mcconf = *mc_interface_get_configuration();
 	mcconf->s_pid_kp = grind_original_kp;
 	mcconf->s_pid_kd = grind_original_kd;
+
+	if (grind_original_ki >= 0.0f) {
+		mcconf->s_pid_ki = grind_original_ki;
+		grind_original_ki = -1.0f;
+	}
+
 	mc_interface_set_configuration(mcconf);
 	mempools_free_mcconf(mcconf);
 	grind_original_kp = -1.0f;
