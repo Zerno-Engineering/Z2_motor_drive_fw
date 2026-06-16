@@ -42,6 +42,7 @@
 #define EEPROM_ADDR_STEPS_VALUE                   (10)
 #define EEPROM_ADDR_ADC_MAX_VALUE                 (12)
 #define CURRENT_MOTOR_TIMEOUT_MS                  (250)
+#define OVERLOAD_CLEAR_DELAY_MS                   (250)
 #define MOTOR_SELECTED                            (2)
 #define GRIND_TIMEOUT_SEC                         (600)
 #define CUTOFF_CURRENT_AMPS                       (4.0f)
@@ -774,6 +775,7 @@ static THD_FUNCTION(speed_thread, arg) {
 	chThdSleepMilliseconds(2000);
 
 	static systime_t overload_time_in_systicks = SYSTICK_ZERO_VALUE;
+	static systime_t overload_clear_time = SYSTICK_ZERO_VALUE;
 	static systime_t no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
 	static systime_t grind_engage_time = SYSTICK_ZERO_VALUE;
 	static systime_t grind_release_time = SYSTICK_ZERO_VALUE;
@@ -904,16 +906,27 @@ static THD_FUNCTION(speed_thread, arg) {
 			}
 
 			if ((mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS)) {
+				overload_clear_time = SYSTICK_ZERO_VALUE;
 				if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
 					overload_time_in_systicks = chVTGetSystemTime();
 				} else {
 					if (chVTTimeElapsedSinceX(overload_time_in_systicks) > MS2ST(CURRENT_MOTOR_TIMEOUT_MS)) {
 						mc_interface_release_motor();
+						is_motor_grinding_enable = false;
 						overload_time_in_systicks = SYSTICK_ZERO_VALUE;
 					}
 				}
 			} else {
-				overload_time_in_systicks = SYSTICK_ZERO_VALUE;
+				if (overload_time_in_systicks != SYSTICK_ZERO_VALUE) {
+					if (overload_clear_time == SYSTICK_ZERO_VALUE) {
+						overload_clear_time = chVTGetSystemTime();
+					} else if (chVTTimeElapsedSinceX(overload_clear_time) > MS2ST(OVERLOAD_CLEAR_DELAY_MS)) {
+						overload_time_in_systicks = SYSTICK_ZERO_VALUE;
+						overload_clear_time = SYSTICK_ZERO_VALUE;
+					}
+				} else {
+					overload_clear_time = SYSTICK_ZERO_VALUE;
+				}
 			}
 		}
 
