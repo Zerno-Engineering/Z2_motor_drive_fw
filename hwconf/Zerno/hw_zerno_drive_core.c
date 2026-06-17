@@ -109,8 +109,7 @@
 #define PIN_15                                    (15)
 #define GRIND_CURRENT_DEFAULT_TH_AMPS             1.0f // this would be set to 2.5A
 #define GRIND_CURRENT_HYSTERESIS_AMPS             0.3f
-#define GRIND_PID_DEFAULT_KP_MULTIPLIER           3.5f
-#define GRIND_PID_DEFAULT_KD_MULTIPLIER           20.0f
+#define GRIND_PID_DEFAULT_KP_MULTIPLIER           4.0f
 #define GRIND_ENGAGE_DELAY_MS                     200
 #define GRIND_RELEASE_DELAY_MS                    200
 #define GRIND_PID_RAMP_STEPS                      30   // 30 × 10 ms loop = 300 ms transition
@@ -149,7 +148,6 @@ static bool change_erpm_ramp_pid_mom_state = false;
 
 static float grind_current_th_amps = GRIND_CURRENT_DEFAULT_TH_AMPS;
 static float grind_kp_multiplier = GRIND_PID_DEFAULT_KP_MULTIPLIER;
-static float grind_kd_multiplier = GRIND_PID_DEFAULT_KD_MULTIPLIER;
 static float grind_original_kp = -1.0f;
 static float grind_original_kd = -1.0f;
 static float grind_original_ki = -1.0f;
@@ -203,6 +201,7 @@ static const float erpm_lut[14] = {
 	7200.0,
 	8000.0,
 };
+
 
 // I2C configuration
 static const I2CConfig i2cfg = {
@@ -305,8 +304,8 @@ void hw_init_gpio(void) {
 
 	terminal_register_command_callback(
 		"set_grind_pid",
-		"Set grinding PID params: set_grind_pid <current_th_amps> <kp_multiplier> <kd_multiplier>",
-		"[current_th] [kp_mult] [kd_mult]",
+		"Set grinding PID params: set_grind_pid <current_th_amps> <kp_multiplier>",
+		"[current_th] [kp_mult]",
 		terminal_set_grind_pid);
 
 	terminal_register_command_callback(
@@ -541,8 +540,9 @@ static void enable_grind_pid(void) {
 	}
 
 	grind_ramp_is_restore = false;
+	float kd_target = (speed_erpm_setpoint <= 2000.0f) ? 0.000100f : 0.000020f;
 	start_grind_pid_ramp(grind_original_kp * grind_kp_multiplier,
-						 grind_original_kd * grind_kd_multiplier);
+						 kd_target);
 }
 
 static void disable_grind_pid(void) {
@@ -725,25 +725,23 @@ float get_pfc_temp(void) {
 }
 
 static void terminal_set_grind_pid(int argc, const char** argv) {
-	if (argc == 4) {
+	if (argc == 3) {
 		float th = strtof(argv[1], NULL);
 		float kp_mult = strtof(argv[2], NULL);
-		float kd_mult = strtof(argv[3], NULL);
 
-		if ((th <= 0.0f) || (kp_mult <= 0.0f) || (kd_mult <= 0.0f)) {
+		if ((th <= 0.0f) || (kp_mult <= 0.0f)) {
 			commands_printf("Error: all values must be > 0");
 			return;
 		}
 
 		grind_current_th_amps = th;
 		grind_kp_multiplier = kp_mult;
-		grind_kd_multiplier = kd_mult;
 
-		commands_printf("Grind PID set: threshold=%.2f A, kp_mult=%.3f, kd_mult=%.3f",
-						(double)grind_current_th_amps, (double)grind_kp_multiplier, (double)grind_kd_multiplier);
+		commands_printf("Grind PID set: threshold=%.2f A, kp_mult=%.3f",
+						(double)grind_current_th_amps, (double)grind_kp_multiplier);
 	} else {
-		commands_printf("Usage: set_grind_pid <current_th_amps> <kp_multiplier> <kd_multiplier>");
-		commands_printf("Example: set_grind_pid 5.0 0.5 2.0");
+		commands_printf("Usage: set_grind_pid <current_th_amps> <kp_multiplier>");
+		commands_printf("Example: set_grind_pid 5.0 0.5");
 	}
 }
 
@@ -753,7 +751,6 @@ static void terminal_get_grind_pid(int argc, const char** argv) {
 
 	commands_printf("Grind PID threshold: %.2f A", (double)grind_current_th_amps);
 	commands_printf("Grind PID Kp multiplier: %.3f", (double)grind_kp_multiplier);
-	commands_printf("Grind PID Kd multiplier: %.3f", (double)grind_kd_multiplier);
 	commands_printf("Grind PID active: %s", grind_pid_active ? "YES" : "NO");
 }
 
