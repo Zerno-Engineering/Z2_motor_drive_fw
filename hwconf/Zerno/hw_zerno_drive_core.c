@@ -204,6 +204,23 @@ static const float erpm_lut[14] = {
 	8000.0,
 };
 
+static const float kd_lut[14] = {
+	0.000100f,  // 1000
+	0.000100f,  // 1200
+	0.000100f,  // 1600
+	0.000100f,  // 2000
+	0.000020f,  // 2400
+	0.000020f,  // 2800
+	0.000020f,  // 3200
+	0.000020f,  // 3600
+	0.000020f,  // 4000
+	0.000020f,  // 4800
+	0.000020f,  // 5600
+	0.000020f,  // 6400
+	0.000020f,  // 7200
+	0.000020f,  // 8000
+};
+
 // I2C configuration
 static const I2CConfig i2cfg = {
 	OPMODE_I2C,
@@ -542,7 +559,7 @@ static void enable_grind_pid(void) {
 
 	grind_ramp_is_restore = false;
 	start_grind_pid_ramp(grind_original_kp * grind_kp_multiplier,
-						 grind_original_kd * grind_kd_multiplier);
+						 kd_lut[(int)knob_index]);
 }
 
 static void disable_grind_pid(void) {
