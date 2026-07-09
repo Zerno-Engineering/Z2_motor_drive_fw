@@ -823,6 +823,7 @@ static THD_FUNCTION(speed_thread, arg) {
 					is_momentary_position_status = false;
 					is_motor_grinding_enable = true;
 					no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
+					grind_current_filtered = 0.0;
 				}
 
 				safety_calibration = true;
