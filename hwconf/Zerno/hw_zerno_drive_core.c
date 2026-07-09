@@ -113,6 +113,7 @@
 #define GRIND_ENGAGE_DELAY_MS                     200
 #define GRIND_RELEASE_DELAY_MS                    200
 #define GRIND_PID_RAMP_STEPS                      30   // 30 × 10 ms loop = 300 ms transition
+#define GRIND_CURRENT_FILTER_CONSTANT             0.05f // smooths current ripple so it doesn't chatter across the engage/release thresholds
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
@@ -158,6 +159,7 @@ static float grind_kd_ramp_from = 0.0f;
 static float grind_kd_ramp_to = 0.0f;
 static int grind_ramp_step = -1;
 static bool grind_ramp_is_restore = false;
+static float grind_current_filtered = 0.0f;
 
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
@@ -752,6 +754,8 @@ static void terminal_get_grind_pid(int argc, const char** argv) {
 	commands_printf("Grind PID threshold: %.2f A", (double)grind_current_th_amps);
 	commands_printf("Grind PID Kp multiplier: %.3f", (double)grind_kp_multiplier);
 	commands_printf("Grind PID active: %s", grind_pid_active ? "YES" : "NO");
+	commands_printf("Motor current (grind filter): %.2f A", (double)grind_current_filtered);
+	commands_printf("Release point: %.2f A", (double)(grind_current_th_amps - GRIND_CURRENT_HYSTERESIS_AMPS));
 }
 
 static void terminal_print_info(int argc, const char** argv) {
@@ -837,10 +841,11 @@ static THD_FUNCTION(speed_thread, arg) {
 				timeout_reset();
 
 				float current_actual = mc_interface_get_tot_current_filtered();
+				UTILS_LP_FAST(grind_current_filtered, current_actual, GRIND_CURRENT_FILTER_CONSTANT);
 
 				// Grinding current PID adaptation: adjust Kp/Kd when motor hits high load
 				if (!grind_pid_active) {
-					if (current_actual >= grind_current_th_amps) {
+					if (grind_current_filtered >= grind_current_th_amps) {
 						if (grind_engage_time == SYSTICK_ZERO_VALUE) {
 							grind_engage_time = chVTGetSystemTime();
 						} else if (chVTTimeElapsedSinceX(grind_engage_time) > MS2ST(GRIND_ENGAGE_DELAY_MS)) {
@@ -852,7 +857,7 @@ static THD_FUNCTION(speed_thread, arg) {
 						grind_engage_time = SYSTICK_ZERO_VALUE;
 					}
 				} else {
-					if (current_actual < (grind_current_th_amps - GRIND_CURRENT_HYSTERESIS_AMPS)) {
+					if (grind_current_filtered < (grind_current_th_amps - GRIND_CURRENT_HYSTERESIS_AMPS)) {
 						if (grind_release_time == SYSTICK_ZERO_VALUE) {
 							grind_release_time = chVTGetSystemTime();
 						} else if (chVTTimeElapsedSinceX(grind_release_time) > MS2ST(GRIND_RELEASE_DELAY_MS)) {
@@ -874,6 +879,12 @@ static THD_FUNCTION(speed_thread, arg) {
 					} else {
 						if (chVTTimeElapsedSinceX(no_grind_time_in_systicks) > S2ST(GRIND_TIMEOUT_SEC)) {
 							mc_interface_release_motor();
+
+							if (grind_pid_active || (grind_ramp_step >= 0)) {
+								reset_grind_pid_instant();
+								grind_pid_active = false;
+							}
+
 							is_motor_grinding_enable = false;
 							no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
 						}
@@ -931,6 +942,12 @@ static THD_FUNCTION(speed_thread, arg) {
 				} else {
 					if (chVTTimeElapsedSinceX(overload_time_in_systicks) > MS2ST(CURRENT_MOTOR_TIMEOUT_MS)) {
 						mc_interface_release_motor();
+
+						if (grind_pid_active || (grind_ramp_step >= 0)) {
+							reset_grind_pid_instant();
+							grind_pid_active = false;
+						}
+
 						is_motor_grinding_enable = false;
 						overload_time_in_systicks = SYSTICK_ZERO_VALUE;
 					}
