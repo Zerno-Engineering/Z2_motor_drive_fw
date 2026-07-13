@@ -107,13 +107,17 @@
 #define PIN_13                                    (13)
 #define PIN_14                                    (14)
 #define PIN_15                                    (15)
-#define GRIND_CURRENT_DEFAULT_TH_AMPS             1.0f // this would be set to 2.5A
-#define GRIND_CURRENT_HYSTERESIS_AMPS             0.3f
-#define GRIND_PID_DEFAULT_KP_MULTIPLIER           4.0f
-#define GRIND_ENGAGE_DELAY_MS                     200
-#define GRIND_RELEASE_DELAY_MS                    200
-#define GRIND_PID_RAMP_STEPS                      30   // 30 × 10 ms loop = 300 ms transition
-#define GRIND_CURRENT_FILTER_CONSTANT             0.05f // smooths current ripple so it doesn't chatter across the engage/release thresholds
+#define GRIND_CURRENT_DEFAULT_TH_AMPS             (1.0f) // this would be set to 2.5A
+#define GRIND_CURRENT_HYSTERESIS_AMPS             (0.3f)
+#define GRIND_PID_DEFAULT_KP_MULTIPLIER           (4.0f)
+#define GRIND_ENGAGE_DELAY_MS                     (200)
+#define GRIND_RELEASE_DELAY_MS                    (200)
+#define GRIND_PID_RAMP_STEPS                      (30) // 30 × 10 ms loop = 300 ms transition
+#define GRIND_CURRENT_FILTER_CONSTANT             (0.05f) // smooths current ripple so it doesn't chatter across the engage/release thresholds
+#define GRIND_TH_AUTO_MARGIN_AMPS                 (0.4f)
+#define GRIND_TH_SETTLE_MS                        (300)
+#define GRIND_TH_SAMPLE_MS                        (500)
+#define GRIND_TH_SANITY_CEILING_AMPS              (2.0f)
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
@@ -148,6 +152,7 @@ static bool change_erpm_ramp_pid_on_state = false;
 static bool change_erpm_ramp_pid_mom_state = false;
 
 static float grind_current_th_amps = GRIND_CURRENT_DEFAULT_TH_AMPS;
+static bool grind_th_manual_override = false;
 static float grind_kp_multiplier = GRIND_PID_DEFAULT_KP_MULTIPLIER;
 static float grind_original_kp = -1.0f;
 static float grind_original_kd = -1.0f;
@@ -669,6 +674,31 @@ static void motor_encoder_calibrate_offset(void) {
 	is_encoder_done = true;
 }
 
+static void calibrate_grind_threshold(void) {
+	if (grind_th_manual_override) {
+		return;
+	}
+
+	timeout_reset();
+	mc_interface_set_pid_speed(SPEED_ERPM_MOMENTARY);
+	chThdSleepMilliseconds(GRIND_TH_SETTLE_MS);
+
+	float idle_current_filtered = mc_interface_get_tot_current_filtered();
+	systime_t sample_start = chVTGetSystemTime();
+
+	while (chVTTimeElapsedSinceX(sample_start) < MS2ST(GRIND_TH_SAMPLE_MS)) {
+		float idle_current_actual = mc_interface_get_tot_current_filtered();
+		UTILS_LP_FAST(idle_current_filtered, idle_current_actual, GRIND_CURRENT_FILTER_CONSTANT);
+		timeout_reset();
+		mc_interface_set_pid_speed(SPEED_ERPM_MOMENTARY);
+		chThdSleepMilliseconds(10);
+	}
+
+	if (idle_current_filtered < GRIND_TH_SANITY_CEILING_AMPS) {
+		grind_current_th_amps = idle_current_filtered + GRIND_TH_AUTO_MARGIN_AMPS;
+	}
+}
+
 static void write_adc_value_in_volts(void) {
 	circular_buffer_in_volts[head] = knob_read_in_volts;
 	head = (head + 1) % SAMPLES;
@@ -738,8 +768,9 @@ static void terminal_set_grind_pid(int argc, const char** argv) {
 
 		grind_current_th_amps = th;
 		grind_kp_multiplier = kp_mult;
+		grind_th_manual_override = true;
 
-		commands_printf("Grind PID set: threshold=%.2f A, kp_mult=%.3f",
+		commands_printf("Grind PID set: threshold=%.2f A (manual), kp_mult=%.3f",
 						(double)grind_current_th_amps, (double)grind_kp_multiplier);
 	} else {
 		commands_printf("Usage: set_grind_pid <current_th_amps> <kp_multiplier>");
@@ -751,7 +782,8 @@ static void terminal_get_grind_pid(int argc, const char** argv) {
 	(void)argc;
 	(void)argv;
 
-	commands_printf("Grind PID threshold: %.2f A", (double)grind_current_th_amps);
+	commands_printf("Grind PID threshold: %.2f A (%s)", (double)grind_current_th_amps,
+					grind_th_manual_override ? "manual" : "auto");
 	commands_printf("Grind PID Kp multiplier: %.3f", (double)grind_kp_multiplier);
 	commands_printf("Grind PID active: %s", grind_pid_active ? "YES" : "NO");
 	commands_printf("Motor current (grind filter): %.2f A", (double)grind_current_filtered);
@@ -928,6 +960,7 @@ static THD_FUNCTION(speed_thread, arg) {
 
 						knob_encoder_calibrate_offset();
 						motor_encoder_calibrate_offset();
+						calibrate_grind_threshold();
 						store_minimum_value = true;
 					}
 
