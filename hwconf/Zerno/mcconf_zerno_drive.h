@@ -270,7 +270,7 @@
 
 // Zero Vector Frequency
 #ifndef MCCONF_FOC_F_ZV
-#define MCCONF_FOC_F_ZV        40000
+#define MCCONF_FOC_F_ZV        33000
 #endif
 
 // Dead Time Compensation
