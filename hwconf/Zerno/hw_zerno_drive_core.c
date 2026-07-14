@@ -41,12 +41,15 @@
 #define EEPROM_ADDR_MIN_CALIBRATED_VALUE          (8)
 #define EEPROM_ADDR_STEPS_VALUE                   (10)
 #define EEPROM_ADDR_ADC_MAX_VALUE                 (12)
+#define EEPROM_ADDR_GRIND_TH_VALUE                (14)
+#define EEPROM_ADDR_NO_GRIND_TH_VALUE             (16)
 #define CURRENT_MOTOR_TIMEOUT_MS                  (250)
 #define OVERLOAD_CLEAR_DELAY_MS                   (250)
 #define MOTOR_SELECTED                            (2)
 #define GRIND_TIMEOUT_SEC                         (600)
 #define CUTOFF_CURRENT_AMPS                       (4.0f)
-#define NO_GRIND_CURRENT_AMPS                     (0.6f)
+#define NO_GRIND_CURRENT_DEFAULT_AMPS             (0.7f)
+#define NO_GRIND_TH_AUTO_MARGIN_AMPS              (0.15f)
 #define OFFSET_FACTOR_CORRECTION                  (0.05f)
 #define SPEED_MIN_ERPM                            (800.0f)
 #define SPEED_ERPM_STEP                           (200.0f)
@@ -107,12 +110,24 @@
 #define PIN_13                                    (13)
 #define PIN_14                                    (14)
 #define PIN_15                                    (15)
-#define GRIND_CURRENT_DEFAULT_TH_AMPS             1.0f // this would be set to 2.5A
-#define GRIND_CURRENT_HYSTERESIS_AMPS             0.3f
-#define GRIND_PID_DEFAULT_KP_MULTIPLIER           4.0f
-#define GRIND_ENGAGE_DELAY_MS                     200
-#define GRIND_RELEASE_DELAY_MS                    200
-#define GRIND_PID_RAMP_STEPS                      30   // 30 × 10 ms loop = 300 ms transition
+#define GRIND_CURRENT_DEFAULT_TH_AMPS             (1.0f) // this would be set to 2.5A
+#define GRIND_CURRENT_HYSTERESIS_AMPS             (0.3f)
+#define GRIND_PID_DEFAULT_KP_MULTIPLIER           (4.0f)
+#define GRIND_ENGAGE_DELAY_MS                     (200)
+#define GRIND_RELEASE_DELAY_MS                    (200)
+#define GRIND_PID_RAMP_STEPS                      (30) // 30 × 10 ms loop = 300 ms transition
+#define GRIND_CURRENT_FILTER_CONSTANT             (0.05f) // smooths current ripple so it doesn't chatter across the engage/release thresholds
+#define GRIND_TH_AUTO_MARGIN_AMPS                 (0.4f)
+#define GRIND_TH_SETTLE_MS                        (300)
+#define GRIND_TH_SAMPLE_COUNT                     (3)
+#define GRIND_TH_SAMPLE_INTERVAL_MS               (150)
+#define GRIND_TH_SANITY_CEILING_AMPS              (2.0f)
+#define STOP_BEEP_CHANNEL                         (0)
+#define STOP_BEEP_FREQ_HZ                         (2000.0f)
+#define STOP_BEEP_VOLTAGE_DEFAULT                 (80.2f)
+#define STOP_BEEP_VOLTAGE_MAX                     (120.0f)
+#define STOP_BEEP_TONE_MS                         (150)
+#define STOP_BEEP_GAP_MS                          (150)
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
@@ -147,7 +162,10 @@ static bool change_erpm_ramp_pid_on_state = false;
 static bool change_erpm_ramp_pid_mom_state = false;
 
 static float grind_current_th_amps = GRIND_CURRENT_DEFAULT_TH_AMPS;
+static float no_grind_current_amps = NO_GRIND_CURRENT_DEFAULT_AMPS;
+static bool grind_th_manual_override = false;
 static float grind_kp_multiplier = GRIND_PID_DEFAULT_KP_MULTIPLIER;
+static float stop_beep_voltage = STOP_BEEP_VOLTAGE_DEFAULT;
 static float grind_original_kp = -1.0f;
 static float grind_original_kd = -1.0f;
 static float grind_original_ki = -1.0f;
@@ -158,6 +176,7 @@ static float grind_kd_ramp_from = 0.0f;
 static float grind_kd_ramp_to = 0.0f;
 static int grind_ramp_step = -1;
 static bool grind_ramp_is_restore = false;
+static float grind_current_filtered = 0.0f;
 
 static uint8_t is_calibration_done = 0;
 static uint8_t head = 0;
@@ -184,6 +203,8 @@ static void start_grind_pid_ramp(float kp_to, float kd_to);
 static void grind_pid_ramp_step(void);
 static void terminal_set_grind_pid(int argc, const char** argv);
 static void terminal_get_grind_pid(int argc, const char** argv);
+static void terminal_set_beep_volume(int argc, const char** argv);
+static void terminal_get_beep_volume(int argc, const char** argv);
 
 static const float erpm_lut[14] = {
 	1000.0,
@@ -313,6 +334,18 @@ void hw_init_gpio(void) {
 		"Print current grinding PID parameters and state",
 		0,
 		terminal_get_grind_pid);
+
+	terminal_register_command_callback(
+		"set_beep_volume",
+		"Set the stop-mode beep volume: set_beep_volume <volume>",
+		"[volume]",
+		terminal_set_beep_volume);
+
+	terminal_register_command_callback(
+		"get_beep_volume",
+		"Print current stop-mode beep volume",
+		0,
+		terminal_get_beep_volume);
 }
 
 void hw_setup_adc_channels(void) {
@@ -468,6 +501,8 @@ static void define_default_values(void) {
 	eeprom_var min_calibrated_stored;
 	eeprom_var step_stored;
 	eeprom_var adc_maximum_value_stored;
+	eeprom_var grind_th_stored;
+	eeprom_var no_grind_th_stored;
 
 	conf_general_read_eeprom_var_hw(&default_offset, EEPROM_ADDR_ENCODER_VALUE);
 	encoder_min_value_in_volts = default_offset.as_float;
@@ -483,6 +518,14 @@ static void define_default_values(void) {
 
 	conf_general_read_eeprom_var_hw(&adc_maximum_value_stored, EEPROM_ADDR_ADC_MAX_VALUE);
 	get_maximum_adc_value_in_volts = adc_maximum_value_stored.as_float;
+
+	grind_th_stored.as_float = GRIND_CURRENT_DEFAULT_TH_AMPS;
+	conf_general_read_eeprom_var_hw(&grind_th_stored, EEPROM_ADDR_GRIND_TH_VALUE);
+	grind_current_th_amps = (grind_th_stored.as_float > GRIND_CURRENT_DEFAULT_TH_AMPS) ? grind_th_stored.as_float : GRIND_CURRENT_DEFAULT_TH_AMPS;
+
+	no_grind_th_stored.as_float = NO_GRIND_CURRENT_DEFAULT_AMPS;
+	conf_general_read_eeprom_var_hw(&no_grind_th_stored, EEPROM_ADDR_NO_GRIND_TH_VALUE);
+	no_grind_current_amps = (no_grind_th_stored.as_float > NO_GRIND_CURRENT_DEFAULT_AMPS) ? no_grind_th_stored.as_float : NO_GRIND_CURRENT_DEFAULT_AMPS;
 }
 
 static void knob_encoder_calibrate_offset(void) {
@@ -667,6 +710,53 @@ static void motor_encoder_calibrate_offset(void) {
 	is_encoder_done = true;
 }
 
+static void play_stop_beep(void) {
+	mcpwm_foc_play_tone(STOP_BEEP_CHANNEL, STOP_BEEP_FREQ_HZ, stop_beep_voltage);
+	chThdSleepMilliseconds(STOP_BEEP_TONE_MS);
+	mcpwm_foc_play_tone(STOP_BEEP_CHANNEL, STOP_BEEP_FREQ_HZ, 0.0f);
+	chThdSleepMilliseconds(STOP_BEEP_GAP_MS);
+	mcpwm_foc_play_tone(STOP_BEEP_CHANNEL, STOP_BEEP_FREQ_HZ, stop_beep_voltage);
+	chThdSleepMilliseconds(STOP_BEEP_TONE_MS);
+	mcpwm_foc_stop_audio(true);
+}
+
+static void calibrate_grind_threshold(void) {
+	if (grind_th_manual_override) {
+		return;
+	}
+
+	timeout_reset();
+	mc_interface_set_pid_speed(SPEED_ERPM_MOMENTARY);
+	chThdSleepMilliseconds(GRIND_TH_SETTLE_MS);
+
+	float idle_current_sum = 0.0f;
+
+	for (int i = 0; i < GRIND_TH_SAMPLE_COUNT; i++) {
+		idle_current_sum += mc_interface_get_tot_current_filtered();
+		timeout_reset();
+		mc_interface_set_pid_speed(SPEED_ERPM_MOMENTARY);
+		chThdSleepMilliseconds(GRIND_TH_SAMPLE_INTERVAL_MS);
+	}
+
+	float idle_current_avg = idle_current_sum / GRIND_TH_SAMPLE_COUNT;
+
+	if (idle_current_avg < GRIND_TH_SANITY_CEILING_AMPS) {
+		float calibrated_th = idle_current_avg + GRIND_TH_AUTO_MARGIN_AMPS;
+		grind_current_th_amps = (calibrated_th > GRIND_CURRENT_DEFAULT_TH_AMPS) ? calibrated_th : GRIND_CURRENT_DEFAULT_TH_AMPS;
+
+		float calibrated_no_grind_th = idle_current_avg + NO_GRIND_TH_AUTO_MARGIN_AMPS;
+		no_grind_current_amps = (calibrated_no_grind_th > NO_GRIND_CURRENT_DEFAULT_AMPS) ? calibrated_no_grind_th : NO_GRIND_CURRENT_DEFAULT_AMPS;
+
+		eeprom_var grind_th_store;
+		grind_th_store.as_float = grind_current_th_amps;
+		conf_general_store_eeprom_var_hw(&grind_th_store, EEPROM_ADDR_GRIND_TH_VALUE);
+
+		eeprom_var no_grind_th_store;
+		no_grind_th_store.as_float = no_grind_current_amps;
+		conf_general_store_eeprom_var_hw(&no_grind_th_store, EEPROM_ADDR_NO_GRIND_TH_VALUE);
+	}
+}
+
 static void write_adc_value_in_volts(void) {
 	circular_buffer_in_volts[head] = knob_read_in_volts;
 	head = (head + 1) % SAMPLES;
@@ -736,8 +826,9 @@ static void terminal_set_grind_pid(int argc, const char** argv) {
 
 		grind_current_th_amps = th;
 		grind_kp_multiplier = kp_mult;
+		grind_th_manual_override = true;
 
-		commands_printf("Grind PID set: threshold=%.2f A, kp_mult=%.3f",
+		commands_printf("Grind PID set: threshold=%.2f A (manual), kp_mult=%.3f",
 						(double)grind_current_th_amps, (double)grind_kp_multiplier);
 	} else {
 		commands_printf("Usage: set_grind_pid <current_th_amps> <kp_multiplier>");
@@ -749,9 +840,37 @@ static void terminal_get_grind_pid(int argc, const char** argv) {
 	(void)argc;
 	(void)argv;
 
-	commands_printf("Grind PID threshold: %.2f A", (double)grind_current_th_amps);
+	commands_printf("Grind PID threshold: %.2f A (%s)", (double)grind_current_th_amps, grind_th_manual_override ? "manual" : "auto");
 	commands_printf("Grind PID Kp multiplier: %.3f", (double)grind_kp_multiplier);
 	commands_printf("Grind PID active: %s", grind_pid_active ? "YES" : "NO");
+	commands_printf("Motor current (grind filter): %.2f A", (double)grind_current_filtered);
+	commands_printf("Release point: %.2f A", (double)(grind_current_th_amps - GRIND_CURRENT_HYSTERESIS_AMPS));
+	commands_printf("No-grind timeout current: %.2f A", (double)no_grind_current_amps);
+}
+
+static void terminal_set_beep_volume(int argc, const char** argv) {
+	if (argc == 2) {
+		float volume = strtof(argv[1], NULL);
+
+		if ((volume < 0.0f) || (volume > STOP_BEEP_VOLTAGE_MAX)) {
+			commands_printf("Error: volume must be between 0 and %.1f", (double)STOP_BEEP_VOLTAGE_MAX);
+			return;
+		}
+
+		stop_beep_voltage = volume;
+
+		commands_printf("Stop beep volume set: %.2f", (double)stop_beep_voltage);
+	} else {
+		commands_printf("Usage: set_beep_volume <volume>");
+		commands_printf("Example: set_beep_volume 5.0 (0 = silent, max %.1f)", (double)STOP_BEEP_VOLTAGE_MAX);
+	}
+}
+
+static void terminal_get_beep_volume(int argc, const char** argv) {
+	(void)argc;
+	(void)argv;
+
+	commands_printf("Stop beep volume: %.2f", (double)stop_beep_voltage);
 }
 
 static void terminal_print_info(int argc, const char** argv) {
@@ -819,6 +938,7 @@ static THD_FUNCTION(speed_thread, arg) {
 					is_momentary_position_status = false;
 					is_motor_grinding_enable = true;
 					no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
+					grind_current_filtered = 0.0;
 				}
 
 				safety_calibration = true;
@@ -837,10 +957,11 @@ static THD_FUNCTION(speed_thread, arg) {
 				timeout_reset();
 
 				float current_actual = mc_interface_get_tot_current_filtered();
+				UTILS_LP_FAST(grind_current_filtered, current_actual, GRIND_CURRENT_FILTER_CONSTANT);
 
 				// Grinding current PID adaptation: adjust Kp/Kd when motor hits high load
 				if (!grind_pid_active) {
-					if (current_actual >= grind_current_th_amps) {
+					if (grind_current_filtered >= grind_current_th_amps) {
 						if (grind_engage_time == SYSTICK_ZERO_VALUE) {
 							grind_engage_time = chVTGetSystemTime();
 						} else if (chVTTimeElapsedSinceX(grind_engage_time) > MS2ST(GRIND_ENGAGE_DELAY_MS)) {
@@ -852,7 +973,7 @@ static THD_FUNCTION(speed_thread, arg) {
 						grind_engage_time = SYSTICK_ZERO_VALUE;
 					}
 				} else {
-					if (current_actual < (grind_current_th_amps - GRIND_CURRENT_HYSTERESIS_AMPS)) {
+					if (grind_current_filtered < (grind_current_th_amps - GRIND_CURRENT_HYSTERESIS_AMPS)) {
 						if (grind_release_time == SYSTICK_ZERO_VALUE) {
 							grind_release_time = chVTGetSystemTime();
 						} else if (chVTTimeElapsedSinceX(grind_release_time) > MS2ST(GRIND_RELEASE_DELAY_MS)) {
@@ -868,14 +989,21 @@ static THD_FUNCTION(speed_thread, arg) {
 				grind_pid_ramp_step();
 				mc_interface_set_pid_speed(speed_erpm_setpoint);
 
-				if (mc_interface_get_tot_current() < NO_GRIND_CURRENT_AMPS) {
+				if (grind_current_filtered < no_grind_current_amps) {
 					if (no_grind_time_in_systicks == SYSTICK_ZERO_VALUE) {
 						no_grind_time_in_systicks = chVTGetSystemTime();
 					} else {
 						if (chVTTimeElapsedSinceX(no_grind_time_in_systicks) > S2ST(GRIND_TIMEOUT_SEC)) {
 							mc_interface_release_motor();
+
+							if (grind_pid_active || (grind_ramp_step >= 0)) {
+								reset_grind_pid_instant();
+								grind_pid_active = false;
+							}
+
 							is_motor_grinding_enable = false;
 							no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
+							play_stop_beep();
 						}
 					}
 				} else {
@@ -916,6 +1044,7 @@ static THD_FUNCTION(speed_thread, arg) {
 
 						knob_encoder_calibrate_offset();
 						motor_encoder_calibrate_offset();
+						calibrate_grind_threshold();
 						store_minimum_value = true;
 					}
 
@@ -931,6 +1060,12 @@ static THD_FUNCTION(speed_thread, arg) {
 				} else {
 					if (chVTTimeElapsedSinceX(overload_time_in_systicks) > MS2ST(CURRENT_MOTOR_TIMEOUT_MS)) {
 						mc_interface_release_motor();
+
+						if (grind_pid_active || (grind_ramp_step >= 0)) {
+							reset_grind_pid_instant();
+							grind_pid_active = false;
+						}
+
 						is_motor_grinding_enable = false;
 						overload_time_in_systicks = SYSTICK_ZERO_VALUE;
 					}
