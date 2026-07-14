@@ -41,6 +41,7 @@
 #define EEPROM_ADDR_MIN_CALIBRATED_VALUE          (8)
 #define EEPROM_ADDR_STEPS_VALUE                   (10)
 #define EEPROM_ADDR_ADC_MAX_VALUE                 (12)
+#define EEPROM_ADDR_GRIND_TH_VALUE                (14)
 #define CURRENT_MOTOR_TIMEOUT_MS                  (250)
 #define OVERLOAD_CLEAR_DELAY_MS                   (250)
 #define MOTOR_SELECTED                            (2)
@@ -475,6 +476,7 @@ static void define_default_values(void) {
 	eeprom_var min_calibrated_stored;
 	eeprom_var step_stored;
 	eeprom_var adc_maximum_value_stored;
+	eeprom_var grind_th_stored;
 
 	conf_general_read_eeprom_var_hw(&default_offset, EEPROM_ADDR_ENCODER_VALUE);
 	encoder_min_value_in_volts = default_offset.as_float;
@@ -490,6 +492,10 @@ static void define_default_values(void) {
 
 	conf_general_read_eeprom_var_hw(&adc_maximum_value_stored, EEPROM_ADDR_ADC_MAX_VALUE);
 	get_maximum_adc_value_in_volts = adc_maximum_value_stored.as_float;
+
+	grind_th_stored.as_float = GRIND_CURRENT_DEFAULT_TH_AMPS;
+	conf_general_read_eeprom_var_hw(&grind_th_stored, EEPROM_ADDR_GRIND_TH_VALUE);
+	grind_current_th_amps = (grind_th_stored.as_float > GRIND_CURRENT_DEFAULT_TH_AMPS) ? grind_th_stored.as_float : GRIND_CURRENT_DEFAULT_TH_AMPS;
 }
 
 static void knob_encoder_calibrate_offset(void) {
@@ -695,7 +701,12 @@ static void calibrate_grind_threshold(void) {
 	}
 
 	if (idle_current_filtered < GRIND_TH_SANITY_CEILING_AMPS) {
-		grind_current_th_amps = idle_current_filtered + GRIND_TH_AUTO_MARGIN_AMPS;
+		float calibrated_th = idle_current_filtered + GRIND_TH_AUTO_MARGIN_AMPS;
+		grind_current_th_amps = (calibrated_th > GRIND_CURRENT_DEFAULT_TH_AMPS) ? calibrated_th : GRIND_CURRENT_DEFAULT_TH_AMPS;
+
+		eeprom_var grind_th_store;
+		grind_th_store.as_float = grind_current_th_amps;
+		conf_general_store_eeprom_var_hw(&grind_th_store, EEPROM_ADDR_GRIND_TH_VALUE);
 	}
 }
 
@@ -782,8 +793,7 @@ static void terminal_get_grind_pid(int argc, const char** argv) {
 	(void)argc;
 	(void)argv;
 
-	commands_printf("Grind PID threshold: %.2f A (%s)", (double)grind_current_th_amps,
-					grind_th_manual_override ? "manual" : "auto");
+	commands_printf("Grind PID threshold: %.2f A (%s)", (double)grind_current_th_amps, grind_th_manual_override ? "manual" : "auto");
 	commands_printf("Grind PID Kp multiplier: %.3f", (double)grind_kp_multiplier);
 	commands_printf("Grind PID active: %s", grind_pid_active ? "YES" : "NO");
 	commands_printf("Motor current (grind filter): %.2f A", (double)grind_current_filtered);
