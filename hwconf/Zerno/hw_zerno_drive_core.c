@@ -117,7 +117,8 @@
 #define GRIND_CURRENT_FILTER_CONSTANT             (0.05f) // smooths current ripple so it doesn't chatter across the engage/release thresholds
 #define GRIND_TH_AUTO_MARGIN_AMPS                 (0.4f)
 #define GRIND_TH_SETTLE_MS                        (300)
-#define GRIND_TH_SAMPLE_MS                        (500)
+#define GRIND_TH_SAMPLE_COUNT                     (3)
+#define GRIND_TH_SAMPLE_INTERVAL_MS               (150)
 #define GRIND_TH_SANITY_CEILING_AMPS              (2.0f)
 
 static THD_FUNCTION(speed_thread, arg);
@@ -689,19 +690,19 @@ static void calibrate_grind_threshold(void) {
 	mc_interface_set_pid_speed(SPEED_ERPM_MOMENTARY);
 	chThdSleepMilliseconds(GRIND_TH_SETTLE_MS);
 
-	float idle_current_filtered = mc_interface_get_tot_current_filtered();
-	systime_t sample_start = chVTGetSystemTime();
+	float idle_current_sum = 0.0f;
 
-	while (chVTTimeElapsedSinceX(sample_start) < MS2ST(GRIND_TH_SAMPLE_MS)) {
-		float idle_current_actual = mc_interface_get_tot_current_filtered();
-		UTILS_LP_FAST(idle_current_filtered, idle_current_actual, GRIND_CURRENT_FILTER_CONSTANT);
+	for (int i = 0; i < GRIND_TH_SAMPLE_COUNT; i++) {
+		idle_current_sum += mc_interface_get_tot_current_filtered();
 		timeout_reset();
 		mc_interface_set_pid_speed(SPEED_ERPM_MOMENTARY);
-		chThdSleepMilliseconds(10);
+		chThdSleepMilliseconds(GRIND_TH_SAMPLE_INTERVAL_MS);
 	}
 
-	if (idle_current_filtered < GRIND_TH_SANITY_CEILING_AMPS) {
-		float calibrated_th = idle_current_filtered + GRIND_TH_AUTO_MARGIN_AMPS;
+	float idle_current_avg = idle_current_sum / GRIND_TH_SAMPLE_COUNT;
+
+	if (idle_current_avg < GRIND_TH_SANITY_CEILING_AMPS) {
+		float calibrated_th = idle_current_avg + GRIND_TH_AUTO_MARGIN_AMPS;
 		grind_current_th_amps = (calibrated_th > GRIND_CURRENT_DEFAULT_TH_AMPS) ? calibrated_th : GRIND_CURRENT_DEFAULT_TH_AMPS;
 
 		eeprom_var grind_th_store;
