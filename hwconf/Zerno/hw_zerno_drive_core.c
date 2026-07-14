@@ -122,6 +122,12 @@
 #define GRIND_TH_SAMPLE_COUNT                     (3)
 #define GRIND_TH_SAMPLE_INTERVAL_MS               (150)
 #define GRIND_TH_SANITY_CEILING_AMPS              (2.0f)
+#define STOP_BEEP_CHANNEL                         (0)
+#define STOP_BEEP_FREQ_HZ                         (2000.0f)
+#define STOP_BEEP_VOLTAGE_DEFAULT                 (80.2f)
+#define STOP_BEEP_VOLTAGE_MAX                     (120.0f)
+#define STOP_BEEP_TONE_MS                         (150)
+#define STOP_BEEP_GAP_MS                          (150)
 
 static THD_FUNCTION(speed_thread, arg);
 static THD_FUNCTION(encoder_thread, arg);
@@ -159,6 +165,7 @@ static float grind_current_th_amps = GRIND_CURRENT_DEFAULT_TH_AMPS;
 static float no_grind_current_amps = NO_GRIND_CURRENT_DEFAULT_AMPS;
 static bool grind_th_manual_override = false;
 static float grind_kp_multiplier = GRIND_PID_DEFAULT_KP_MULTIPLIER;
+static float stop_beep_voltage = STOP_BEEP_VOLTAGE_DEFAULT;
 static float grind_original_kp = -1.0f;
 static float grind_original_kd = -1.0f;
 static float grind_original_ki = -1.0f;
@@ -196,6 +203,8 @@ static void start_grind_pid_ramp(float kp_to, float kd_to);
 static void grind_pid_ramp_step(void);
 static void terminal_set_grind_pid(int argc, const char** argv);
 static void terminal_get_grind_pid(int argc, const char** argv);
+static void terminal_set_beep_volume(int argc, const char** argv);
+static void terminal_get_beep_volume(int argc, const char** argv);
 
 static const float erpm_lut[14] = {
 	1000.0,
@@ -325,6 +334,18 @@ void hw_init_gpio(void) {
 		"Print current grinding PID parameters and state",
 		0,
 		terminal_get_grind_pid);
+
+	terminal_register_command_callback(
+		"set_beep_volume",
+		"Set the stop-mode beep volume: set_beep_volume <volume>",
+		"[volume]",
+		terminal_set_beep_volume);
+
+	terminal_register_command_callback(
+		"get_beep_volume",
+		"Print current stop-mode beep volume",
+		0,
+		terminal_get_beep_volume);
 }
 
 void hw_setup_adc_channels(void) {
@@ -689,6 +710,16 @@ static void motor_encoder_calibrate_offset(void) {
 	is_encoder_done = true;
 }
 
+static void play_stop_beep(void) {
+	mcpwm_foc_play_tone(STOP_BEEP_CHANNEL, STOP_BEEP_FREQ_HZ, stop_beep_voltage);
+	chThdSleepMilliseconds(STOP_BEEP_TONE_MS);
+	mcpwm_foc_play_tone(STOP_BEEP_CHANNEL, STOP_BEEP_FREQ_HZ, 0.0f);
+	chThdSleepMilliseconds(STOP_BEEP_GAP_MS);
+	mcpwm_foc_play_tone(STOP_BEEP_CHANNEL, STOP_BEEP_FREQ_HZ, stop_beep_voltage);
+	chThdSleepMilliseconds(STOP_BEEP_TONE_MS);
+	mcpwm_foc_stop_audio(true);
+}
+
 static void calibrate_grind_threshold(void) {
 	if (grind_th_manual_override) {
 		return;
@@ -815,6 +846,31 @@ static void terminal_get_grind_pid(int argc, const char** argv) {
 	commands_printf("Motor current (grind filter): %.2f A", (double)grind_current_filtered);
 	commands_printf("Release point: %.2f A", (double)(grind_current_th_amps - GRIND_CURRENT_HYSTERESIS_AMPS));
 	commands_printf("No-grind timeout current: %.2f A", (double)no_grind_current_amps);
+}
+
+static void terminal_set_beep_volume(int argc, const char** argv) {
+	if (argc == 2) {
+		float volume = strtof(argv[1], NULL);
+
+		if ((volume < 0.0f) || (volume > STOP_BEEP_VOLTAGE_MAX)) {
+			commands_printf("Error: volume must be between 0 and %.1f", (double)STOP_BEEP_VOLTAGE_MAX);
+			return;
+		}
+
+		stop_beep_voltage = volume;
+
+		commands_printf("Stop beep volume set: %.2f", (double)stop_beep_voltage);
+	} else {
+		commands_printf("Usage: set_beep_volume <volume>");
+		commands_printf("Example: set_beep_volume 5.0 (0 = silent, max %.1f)", (double)STOP_BEEP_VOLTAGE_MAX);
+	}
+}
+
+static void terminal_get_beep_volume(int argc, const char** argv) {
+	(void)argc;
+	(void)argv;
+
+	commands_printf("Stop beep volume: %.2f", (double)stop_beep_voltage);
 }
 
 static void terminal_print_info(int argc, const char** argv) {
@@ -947,6 +1003,7 @@ static THD_FUNCTION(speed_thread, arg) {
 
 							is_motor_grinding_enable = false;
 							no_grind_time_in_systicks = SYSTICK_ZERO_VALUE;
+							play_stop_beep();
 						}
 					}
 				} else {
