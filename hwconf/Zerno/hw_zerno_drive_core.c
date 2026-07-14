@@ -42,12 +42,14 @@
 #define EEPROM_ADDR_STEPS_VALUE                   (10)
 #define EEPROM_ADDR_ADC_MAX_VALUE                 (12)
 #define EEPROM_ADDR_GRIND_TH_VALUE                (14)
+#define EEPROM_ADDR_NO_GRIND_TH_VALUE             (16)
 #define CURRENT_MOTOR_TIMEOUT_MS                  (250)
 #define OVERLOAD_CLEAR_DELAY_MS                   (250)
 #define MOTOR_SELECTED                            (2)
 #define GRIND_TIMEOUT_SEC                         (600)
 #define CUTOFF_CURRENT_AMPS                       (4.0f)
-#define NO_GRIND_CURRENT_AMPS                     (0.6f)
+#define NO_GRIND_CURRENT_DEFAULT_AMPS             (0.7f)
+#define NO_GRIND_TH_AUTO_MARGIN_AMPS              (0.15f)
 #define OFFSET_FACTOR_CORRECTION                  (0.05f)
 #define SPEED_MIN_ERPM                            (800.0f)
 #define SPEED_ERPM_STEP                           (200.0f)
@@ -154,6 +156,7 @@ static bool change_erpm_ramp_pid_on_state = false;
 static bool change_erpm_ramp_pid_mom_state = false;
 
 static float grind_current_th_amps = GRIND_CURRENT_DEFAULT_TH_AMPS;
+static float no_grind_current_amps = NO_GRIND_CURRENT_DEFAULT_AMPS;
 static bool grind_th_manual_override = false;
 static float grind_kp_multiplier = GRIND_PID_DEFAULT_KP_MULTIPLIER;
 static float grind_original_kp = -1.0f;
@@ -478,6 +481,7 @@ static void define_default_values(void) {
 	eeprom_var step_stored;
 	eeprom_var adc_maximum_value_stored;
 	eeprom_var grind_th_stored;
+	eeprom_var no_grind_th_stored;
 
 	conf_general_read_eeprom_var_hw(&default_offset, EEPROM_ADDR_ENCODER_VALUE);
 	encoder_min_value_in_volts = default_offset.as_float;
@@ -497,6 +501,10 @@ static void define_default_values(void) {
 	grind_th_stored.as_float = GRIND_CURRENT_DEFAULT_TH_AMPS;
 	conf_general_read_eeprom_var_hw(&grind_th_stored, EEPROM_ADDR_GRIND_TH_VALUE);
 	grind_current_th_amps = (grind_th_stored.as_float > GRIND_CURRENT_DEFAULT_TH_AMPS) ? grind_th_stored.as_float : GRIND_CURRENT_DEFAULT_TH_AMPS;
+
+	no_grind_th_stored.as_float = NO_GRIND_CURRENT_DEFAULT_AMPS;
+	conf_general_read_eeprom_var_hw(&no_grind_th_stored, EEPROM_ADDR_NO_GRIND_TH_VALUE);
+	no_grind_current_amps = (no_grind_th_stored.as_float > NO_GRIND_CURRENT_DEFAULT_AMPS) ? no_grind_th_stored.as_float : NO_GRIND_CURRENT_DEFAULT_AMPS;
 }
 
 static void knob_encoder_calibrate_offset(void) {
@@ -705,9 +713,16 @@ static void calibrate_grind_threshold(void) {
 		float calibrated_th = idle_current_avg + GRIND_TH_AUTO_MARGIN_AMPS;
 		grind_current_th_amps = (calibrated_th > GRIND_CURRENT_DEFAULT_TH_AMPS) ? calibrated_th : GRIND_CURRENT_DEFAULT_TH_AMPS;
 
+		float calibrated_no_grind_th = idle_current_avg + NO_GRIND_TH_AUTO_MARGIN_AMPS;
+		no_grind_current_amps = (calibrated_no_grind_th > NO_GRIND_CURRENT_DEFAULT_AMPS) ? calibrated_no_grind_th : NO_GRIND_CURRENT_DEFAULT_AMPS;
+
 		eeprom_var grind_th_store;
 		grind_th_store.as_float = grind_current_th_amps;
 		conf_general_store_eeprom_var_hw(&grind_th_store, EEPROM_ADDR_GRIND_TH_VALUE);
+
+		eeprom_var no_grind_th_store;
+		no_grind_th_store.as_float = no_grind_current_amps;
+		conf_general_store_eeprom_var_hw(&no_grind_th_store, EEPROM_ADDR_NO_GRIND_TH_VALUE);
 	}
 }
 
@@ -799,6 +814,7 @@ static void terminal_get_grind_pid(int argc, const char** argv) {
 	commands_printf("Grind PID active: %s", grind_pid_active ? "YES" : "NO");
 	commands_printf("Motor current (grind filter): %.2f A", (double)grind_current_filtered);
 	commands_printf("Release point: %.2f A", (double)(grind_current_th_amps - GRIND_CURRENT_HYSTERESIS_AMPS));
+	commands_printf("No-grind timeout current: %.2f A", (double)no_grind_current_amps);
 }
 
 static void terminal_print_info(int argc, const char** argv) {
@@ -917,7 +933,7 @@ static THD_FUNCTION(speed_thread, arg) {
 				grind_pid_ramp_step();
 				mc_interface_set_pid_speed(speed_erpm_setpoint);
 
-				if (mc_interface_get_tot_current() < NO_GRIND_CURRENT_AMPS) {
+				if (grind_current_filtered < no_grind_current_amps) {
 					if (no_grind_time_in_systicks == SYSTICK_ZERO_VALUE) {
 						no_grind_time_in_systicks = chVTGetSystemTime();
 					} else {
