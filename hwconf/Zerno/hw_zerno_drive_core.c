@@ -194,6 +194,7 @@ static void read_adc_value_in_volts(void);
 
 
 static bool is_pfc_ok(void);
+void hw_zerno_configure_brownout(uint8_t BOR_level);
 
 static void terminal_print_info(int argc, const char** argv);
 static void enable_grind_pid(void);
@@ -232,6 +233,8 @@ static const I2CConfig i2cfg = {
 };
 
 void hw_init_gpio(void) {
+	hw_zerno_configure_brownout(OB_BOR_LEVEL3);
+
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
@@ -489,8 +492,27 @@ static bool is_pfc_ok(void) {
 	return (bool)palReadPad(PFC_STATUS_PORT, PFC_STATUS_PIN);
 }
 
-/* Enable adc readings for main switch */
+/* Configure the STM32 option-byte brown-out reset level. The MCU is held
+ * under reset until VDD reaches the selected level, which prevents code
+ * (and in particular an in-progress EEPROM/flash write) from running on a
+ * marginal supply during a brown-out. This is stored in flash option bytes
+ * and persists across reprogramming of the application.
+ */
+void hw_zerno_configure_brownout(uint8_t BOR_level) {
+	if ((FLASH_OB_GetBOR() & 0x0C) != BOR_level) {
+		/* Get BOR Option Bytes */
+		FLASH_OB_Unlock();
 
+		/* Select the desired V(BOR) Level -------------------------------------*/
+		FLASH_OB_BORConfig(BOR_level);
+
+		/* Launch the option byte loading */
+		FLASH_OB_Launch();
+
+		/* Locks the option bytes block access */
+		FLASH_OB_Lock();
+	}
+}
 
 /* Load the stored values during start-up
  *
