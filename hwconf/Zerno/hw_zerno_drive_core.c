@@ -83,7 +83,7 @@
 #define SPEED_PID_KP_LOW                          (0.008f)
 #define SPEED_PID_KP_HIGH                         (0.008f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
-#define SPEED_ERPM_RAMP_LOW                       (5000.0f)
+#define SPEED_ERPM_RAMP_LOW                       (7000.0f)
 #define SYSTICK_ZERO_VALUE                        (0.0f)
 #define SPEED_THREAD_STACK_SIZE                   (1024)
 #define ENCODER_THREAD_STACK_SIZE                 (1024)
@@ -112,7 +112,7 @@
 #define PIN_15                                    (15)
 #define GRIND_CURRENT_DEFAULT_TH_AMPS             (1.0f) // this would be set to 2.5A
 #define GRIND_CURRENT_HYSTERESIS_AMPS             (0.3f)
-#define GRIND_PID_DEFAULT_KP_MULTIPLIER           (4.0f)
+#define GRIND_PID_DEFAULT_KP_MULTIPLIER           (4.5f)
 #define GRIND_ENGAGE_DELAY_MS                     (200)
 #define GRIND_RELEASE_DELAY_MS                    (200)
 #define GRIND_PID_RAMP_STEPS                      (30) // 30 × 10 ms loop = 300 ms transition
