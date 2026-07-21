@@ -83,7 +83,7 @@
 #define SPEED_PID_KP_LOW                          (0.008f)
 #define SPEED_PID_KP_HIGH                         (0.008f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
-#define SPEED_ERPM_RAMP_LOW                       (5000.0f)
+#define SPEED_ERPM_RAMP_LOW                       (7000.0f)
 #define SYSTICK_ZERO_VALUE                        (0.0f)
 #define SPEED_THREAD_STACK_SIZE                   (1024)
 #define ENCODER_THREAD_STACK_SIZE                 (1024)
