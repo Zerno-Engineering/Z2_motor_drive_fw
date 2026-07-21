@@ -90,7 +90,7 @@
 
 // Maximum Input Voltage
 #ifndef MCCONF_L_MAX_VOLTAGE
-#define MCCONF_L_MAX_VOLTAGE        430
+#define MCCONF_L_MAX_VOLTAGE        450
 #endif
 
 // Battery Voltage Cutoff Start
@@ -720,7 +720,7 @@
 
 // Ramp eRPMs per second
 #ifndef MCCONF_S_PID_RAMP_ERPMS_S
-#define MCCONF_S_PID_RAMP_ERPMS_S        5000
+#define MCCONF_S_PID_RAMP_ERPMS_S        7000
 #endif
 
 // Speed Source
