@@ -45,6 +45,7 @@
 #define EEPROM_ADDR_NO_GRIND_TH_VALUE             (16)
 #define CURRENT_MOTOR_TIMEOUT_MS                  (250)
 #define OVERLOAD_CLEAR_DELAY_MS                   (250)
+#define STALL_RPM_FRACTION                        (0.4f) // actual erpm below this fraction of setpoint counts as a real stall, not just heavy load
 #define MOTOR_SELECTED                            (2)
 #define GRIND_TIMEOUT_SEC                         (600)
 #define CUTOFF_CURRENT_AMPS                       (4.0f)
@@ -113,6 +114,7 @@
 #define GRIND_CURRENT_DEFAULT_TH_AMPS             (1.0f) // this would be set to 2.5A
 #define GRIND_CURRENT_HYSTERESIS_AMPS             (0.3f)
 #define GRIND_PID_DEFAULT_KP_MULTIPLIER           (4.5f)
+#define GRIND_PID_DEFAULT_KI_MULTIPLIER           (2.0f)
 #define GRIND_ENGAGE_DELAY_MS                     (200)
 #define GRIND_RELEASE_DELAY_MS                    (200)
 #define GRIND_PID_RAMP_STEPS                      (30) // 30 × 10 ms loop = 300 ms transition
@@ -165,6 +167,7 @@ static float grind_current_th_amps = GRIND_CURRENT_DEFAULT_TH_AMPS;
 static float no_grind_current_amps = NO_GRIND_CURRENT_DEFAULT_AMPS;
 static bool grind_th_manual_override = false;
 static float grind_kp_multiplier = GRIND_PID_DEFAULT_KP_MULTIPLIER;
+static float grind_ki_multiplier = GRIND_PID_DEFAULT_KI_MULTIPLIER;
 static float stop_beep_voltage = STOP_BEEP_VOLTAGE_DEFAULT;
 static float grind_original_kp = -1.0f;
 static float grind_original_kd = -1.0f;
@@ -174,6 +177,8 @@ static float grind_kp_ramp_from = 0.0f;
 static float grind_kp_ramp_to = 0.0f;
 static float grind_kd_ramp_from = 0.0f;
 static float grind_kd_ramp_to = 0.0f;
+static float grind_ki_ramp_from = 0.0f;
+static float grind_ki_ramp_to = 0.0f;
 static int grind_ramp_step = -1;
 static bool grind_ramp_is_restore = false;
 static float grind_current_filtered = 0.0f;
@@ -200,7 +205,7 @@ static void terminal_print_info(int argc, const char** argv);
 static void enable_grind_pid(void);
 static void disable_grind_pid(void);
 static void reset_grind_pid_instant(void);
-static void start_grind_pid_ramp(float kp_to, float kd_to);
+static void start_grind_pid_ramp(float kp_to, float kd_to, float ki_to);
 static void grind_pid_ramp_step(void);
 static void terminal_set_grind_pid(int argc, const char** argv);
 static void terminal_get_grind_pid(int argc, const char** argv);
@@ -328,8 +333,8 @@ void hw_init_gpio(void) {
 
 	terminal_register_command_callback(
 		"set_grind_pid",
-		"Set grinding PID params: set_grind_pid <current_th_amps> <kp_multiplier>",
-		"[current_th] [kp_mult]",
+		"Set grinding PID params: set_grind_pid <current_th_amps> <kp_multiplier> [ki_multiplier]",
+		"[current_th] [kp_mult] [ki_mult]",
 		terminal_set_grind_pid);
 
 	terminal_register_command_callback(
@@ -602,12 +607,14 @@ static void enable_grind_pid(void) {
 	if (grind_original_kp < 0.0f) {
 		grind_original_kp = conf->s_pid_kp;
 		grind_original_kd = conf->s_pid_kd;
+		grind_original_ki = conf->s_pid_ki;
 	}
 
 	grind_ramp_is_restore = false;
 	float kd_target = (speed_erpm_setpoint <= 2000.0f) ? 0.000100f : 0.000020f;
 	start_grind_pid_ramp(grind_original_kp * grind_kp_multiplier,
-						 kd_target);
+						 kd_target,
+						 grind_original_ki * grind_ki_multiplier);
 }
 
 static void disable_grind_pid(void) {
@@ -619,22 +626,23 @@ static void disable_grind_pid(void) {
 	// draining the integrator windup accumulated during grinding before the ramp starts.
 	mc_configuration* mcconf = mempools_alloc_mcconf();
 	*mcconf = *mc_interface_get_configuration();
-	grind_original_ki = mcconf->s_pid_ki;
 	mcconf->s_pid_ki = 0.0f; // a quick way to avoid erpm wind-up.
 	mc_interface_set_configuration(mcconf);
 	mempools_free_mcconf(mcconf);
 
 	grind_ramp_is_restore = true;
-	start_grind_pid_ramp(grind_original_kp, grind_original_kd);
+	start_grind_pid_ramp(grind_original_kp, grind_original_kd, grind_original_ki);
 }
 
-static void start_grind_pid_ramp(float kp_to, float kd_to) {
+static void start_grind_pid_ramp(float kp_to, float kd_to, float ki_to) {
 	volatile const mc_configuration* conf = mc_interface_get_configuration();
 
 	grind_kp_ramp_from = conf->s_pid_kp;
 	grind_kd_ramp_from = conf->s_pid_kd;
+	grind_ki_ramp_from = conf->s_pid_ki;
 	grind_kp_ramp_to = kp_to;
 	grind_kd_ramp_to = kd_to;
+	grind_ki_ramp_to = ki_to;
 	grind_ramp_step = 0;
 }
 
@@ -649,17 +657,13 @@ static void grind_pid_ramp_step(void) {
 
 	float kp_next = grind_kp_ramp_from + (grind_kp_ramp_to - grind_kp_ramp_from) * t1;
 	float kd_next = grind_kd_ramp_from + (grind_kd_ramp_to - grind_kd_ramp_from) * t1;
+	float ki_next = grind_ki_ramp_from + (grind_ki_ramp_to - grind_ki_ramp_from) * t1;
 
 	mc_configuration* mcconf = mempools_alloc_mcconf();
 	*mcconf = *mc_interface_get_configuration();
 	mcconf->s_pid_kp = kp_next;
 	mcconf->s_pid_kd = kd_next;
-
-	// integrator is guaranteed zero. Restore Ki now.
-	if (grind_ramp_is_restore && done && (grind_original_ki >= 0.0f)) {
-		mcconf->s_pid_ki = grind_original_ki;
-		grind_original_ki = -1.0f;
-	}
+	mcconf->s_pid_ki = ki_next;
 
 	mc_interface_set_configuration(mcconf);
 	mempools_free_mcconf(mcconf);
@@ -670,6 +674,7 @@ static void grind_pid_ramp_step(void) {
 		if (grind_ramp_is_restore) {
 			grind_original_kp = -1.0f;
 			grind_original_kd = -1.0f;
+			grind_original_ki = -1.0f;
 		}
 	}
 }
@@ -837,24 +842,25 @@ float get_pfc_temp(void) {
 }
 
 static void terminal_set_grind_pid(int argc, const char** argv) {
-	if (argc == 3) {
+	if ((argc == 3) || (argc == 4)) {
 		float th = strtof(argv[1], NULL);
 		float kp_mult = strtof(argv[2], NULL);
+		float ki_mult = (argc == 4) ? strtof(argv[3], NULL) : grind_ki_multiplier;
 
-		if ((th <= 0.0f) || (kp_mult <= 0.0f)) {
+		if ((th <= 0.0f) || (kp_mult <= 0.0f) || (ki_mult <= 0.0f)) {
 			commands_printf("Error: all values must be > 0");
 			return;
 		}
 
 		grind_current_th_amps = th;
 		grind_kp_multiplier = kp_mult;
+		grind_ki_multiplier = ki_mult;
 		grind_th_manual_override = true;
 
-		commands_printf("Grind PID set: threshold=%.2f A (manual), kp_mult=%.3f",
-						(double)grind_current_th_amps, (double)grind_kp_multiplier);
+		commands_printf("Grind PID set: threshold=%.2f A (manual), kp_mult=%.3f, ki_mult=%.3f", (double)grind_current_th_amps, (double)grind_kp_multiplier, (double)grind_ki_multiplier);
 	} else {
-		commands_printf("Usage: set_grind_pid <current_th_amps> <kp_multiplier>");
-		commands_printf("Example: set_grind_pid 5.0 0.5");
+		commands_printf("Usage: set_grind_pid <current_th_amps> <kp_multiplier> [ki_multiplier]");
+		commands_printf("Example: set_grind_pid 5.0 0.5 2.0");
 	}
 }
 
@@ -864,6 +870,7 @@ static void terminal_get_grind_pid(int argc, const char** argv) {
 
 	commands_printf("Grind PID threshold: %.2f A (%s)", (double)grind_current_th_amps, grind_th_manual_override ? "manual" : "auto");
 	commands_printf("Grind PID Kp multiplier: %.3f", (double)grind_kp_multiplier);
+	commands_printf("Grind PID Ki multiplier: %.3f", (double)grind_ki_multiplier);
 	commands_printf("Grind PID active: %s", grind_pid_active ? "YES" : "NO");
 	commands_printf("Motor current (grind filter): %.2f A", (double)grind_current_filtered);
 	commands_printf("Release point: %.2f A", (double)(grind_current_th_amps - GRIND_CURRENT_HYSTERESIS_AMPS));
@@ -1074,7 +1081,7 @@ static THD_FUNCTION(speed_thread, arg) {
 				}
 			}
 
-			if ((mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS)) {
+			if ((mc_interface_get_tot_current() >= CUTOFF_CURRENT_AMPS) && (fabsf(mc_interface_get_rpm()) < (STALL_RPM_FRACTION * speed_erpm_setpoint))) {
 				overload_clear_time = SYSTICK_ZERO_VALUE;
 
 				if (overload_time_in_systicks == SYSTICK_ZERO_VALUE) {
