@@ -45,7 +45,7 @@
 #define EEPROM_ADDR_NO_GRIND_TH_VALUE             (16)
 #define CURRENT_MOTOR_TIMEOUT_MS                  (250)
 #define OVERLOAD_CLEAR_DELAY_MS                   (250)
-#define STALL_RPM_FRACTION                        (0.4f) // actual erpm below this fraction of setpoint counts as a real stall, not just heavy load
+#define STALL_RPM_FRACTION                        (0.3f) // actual erpm below this fraction of setpoint counts as a real stall, not just heavy load
 #define MOTOR_SELECTED                            (2)
 #define GRIND_TIMEOUT_SEC                         (600)
 #define CUTOFF_CURRENT_AMPS                       (4.0f)
@@ -113,8 +113,8 @@
 #define PIN_15                                    (15)
 #define GRIND_CURRENT_DEFAULT_TH_AMPS             (1.0f) // this would be set to 2.5A
 #define GRIND_CURRENT_HYSTERESIS_AMPS             (0.3f)
-#define GRIND_PID_DEFAULT_KP_MULTIPLIER           (4.0f)
-#define GRIND_PID_DEFAULT_KI_MULTIPLIER           (2.0f)
+#define GRIND_PID_DEFAULT_KP_MULTIPLIER           (2.2f)
+#define GRIND_PID_DEFAULT_KI_MULTIPLIER           (1.0f)
 #define GRIND_ENGAGE_DELAY_MS                     (200)
 #define GRIND_RELEASE_DELAY_MS                    (200)
 #define GRIND_PID_RAMP_STEPS                      (30) // 30 × 10 ms loop = 300 ms transition
