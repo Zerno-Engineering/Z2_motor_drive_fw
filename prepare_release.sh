@@ -24,14 +24,33 @@ function get_app_version {
 }
 
 function get_fw_version {
-    VERSION_FILE=$BASE_PATH"/tools/cmake/version.cmake"
-    echo "Version file: $VERSION_FILE"
+    # The firmware version comes from the git tags, so tagging a commit is the
+    # only step needed to set a release version:
+    #
+    #   FW_VERSION       1.2.1             nearest tag, leading v stripped
+    #   FW_VERSION_FULL  1.2.1-3-gabc1234  same, plus the number of commits made
+    #                                      since that tag and the short hash,
+    #                                      when HEAD is not sitting on a tag
+    FW_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+    FW_VERSION_FULL=$(git describe --tags 2>/dev/null | sed 's/^v//')
 
-    VERSION_MAJOR=$(grep -oP 'set\(VERSION_INFO_MAJOR\s+\K\d+' "$VERSION_FILE")
-    VERSION_MINOR=$(grep -oP 'set\(VERSION_INFO_MINOR\s+\K\d+' "$VERSION_FILE")
-    VERSION_BUILD=$(grep -oP 'set\(VERSION_INFO_BUILD\s+\K\d+' "$VERSION_FILE")
+    if [ -z "$FW_VERSION" ]; then
+        echo "No git tag found, cannot determine the firmware version"
+        echo "Tag the release first, e.g. git tag -a v1.2.2 -m 'Release 1.2.2'"
+        exit 1
+    fi
 
-    APP_VERSION=$VERSION_MAJOR.$VERSION_MINOR.$VERSION_BUILD-h-$APP_VERSION
+    if is_tag_build; then
+        echo "Building tagged release: $CURRENT_TAG"
+    else
+        YELLOW="\033[0;33m"
+        RESET="\033[0m"
+        echo -e "${YELLOW}WARNING: HEAD is not tagged. Nearest tag is v$FW_VERSION, HEAD is $FW_VERSION_FULL${RESET}"
+    fi
+
+    # Release name carries the firmware version plus the short hash it was built
+    # from, e.g. 1.2.1-194b685c
+    APP_VERSION=$FW_VERSION-$APP_VERSION
     echo "App version: $APP_VERSION"
 }
 
@@ -70,12 +89,12 @@ function is_tag_build {
 
 
 get_app_version
-#get_fw_version
+get_fw_version
 get_project_name
 get_board_name
 
 COMPILATION_TIME=$(date +"%Y-%m-%d-%H-%M-UTC%z")
-RELEASE_NAME=$PROJECT_NAME-$BOARD_NAME-release-v-$APP_VERSION-$COMPILATION_TIME
+RELEASE_NAME=$PROJECT_NAME-$BOARD_NAME-release-v$APP_VERSION-$COMPILATION_TIME
 
 for SHUNT in "0.003" "0.005"
 do
@@ -99,7 +118,7 @@ do
 
     SRC_FW_PATH="$PROJECT_PATH/build"
 
-    cp "$SRC_FW_PATH"/zerno_drive/*.bin "$DEST_FW_PATH/${PROJECT_NAME}_${REV}.bin"
+    cp "$SRC_FW_PATH"/zerno_drive/*.bin "$DEST_FW_PATH/${PROJECT_NAME}_${REV}_v_${FW_VERSION}.bin"
 done
 
 zip -r "./$RELEASE_NAME.zip" "./$RELEASE_NAME/"
