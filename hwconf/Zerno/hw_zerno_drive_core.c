@@ -213,7 +213,7 @@ static void terminal_set_beep_volume(int argc, const char** argv);
 static void terminal_get_beep_volume(int argc, const char** argv);
 
 static const float erpm_lut[14] = {
-	1000.0,
+	800.0,
 	1200.0,
 	1600.0,
 	2000.0,
