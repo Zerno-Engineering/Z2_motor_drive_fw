@@ -81,6 +81,8 @@
 #define CALIBRATION_CURRENT                       (2.0f)
 #define CALIBRATION_RATIO_VALUE                   (0.0f)
 #define CALIBRATION_OFFSET_VALUE                  (0.0f)
+#define CALIBRATION_OFFSET_MAX_DEG                (360.0f)
+#define CALIBRATION_RATIO_MIN                     (1.0f)
 #define SPEED_PID_KP_LOW                          (0.008f)
 #define SPEED_PID_KP_HIGH                         (0.008f)
 #define SPEED_ERPM_RAMP_HIGH                      (10000.0f)
@@ -706,8 +708,18 @@ static void reset_grind_pid_instant(void) {
 static void motor_encoder_calibrate_offset(void) {
 	mc_configuration* mcconf = mempools_alloc_mcconf();
 
-	*mcconf = *mc_interface_get_configuration();
+	if (mcconf == NULL) { // the pool is exhausted, retry on the next calibration cycle.
+		return;
+	}
+
 	mc_configuration* mcconf_previous = mempools_alloc_mcconf();
+
+	if (mcconf_previous == NULL) {
+		mempools_free_mcconf(mcconf);
+		return;
+	}
+
+	*mcconf = *mc_interface_get_configuration();
 	*mcconf_previous = *mcconf;
 
 	mcconf->motor_type = MOTOR_TYPE_FOC;
@@ -721,20 +733,31 @@ static void motor_encoder_calibrate_offset(void) {
 	float ratio = CALIBRATION_RATIO_VALUE;
 	bool inverted = false;
 
-	mcpwm_foc_encoder_detect(current, false, &offset, &ratio, &inverted);
+	int fault = mcpwm_foc_encoder_detect(current, false, &offset, &ratio, &inverted);
 
-	mcconf_previous->foc_encoder_offset = offset;
-	mcconf->foc_encoder_offset = offset;
+	// on a fault the detection bails out before writing the offset, so only a fault free
+	// and finite result is allowed to reach the flash.
+	bool is_offset_valid = (fault == FAULT_CODE_NONE) &&
+						   !UTILS_IS_NAN(offset) && !UTILS_IS_INF(offset) &&
+						   (offset >= 0.0f) && (offset <= CALIBRATION_OFFSET_MAX_DEG) &&
+						   !UTILS_IS_NAN(ratio) && !UTILS_IS_INF(ratio) &&
+						   (ratio >= CALIBRATION_RATIO_MIN);
 
-	conf_general_store_mc_configuration(mcconf_previous, mc_interface_get_motor_thread() == MOTOR_SELECTED);
-
-	mc_interface_set_configuration(mcconf);
 	mc_interface_set_configuration(mcconf_previous);
+
+	if (is_offset_valid) {
+		mcconf_previous->foc_encoder_offset = offset;
+		mcconf_previous->foc_encoder_ratio = ratio;
+		mcconf_previous->foc_encoder_inverted = inverted;
+
+		if (conf_general_store_mc_configuration(mcconf_previous, mc_interface_get_motor_thread() == MOTOR_SELECTED)) {
+			mc_interface_set_configuration(mcconf_previous);
+			is_encoder_done = true;
+		}
+	}
 
 	mempools_free_mcconf(mcconf);
 	mempools_free_mcconf(mcconf_previous);
-
-	is_encoder_done = true;
 }
 
 static void play_stop_beep(void) {
