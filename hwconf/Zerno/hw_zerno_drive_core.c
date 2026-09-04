@@ -115,7 +115,7 @@
 #define PIN_15                                    (15)
 #define GRIND_CURRENT_DEFAULT_TH_AMPS             (1.0f) // this would be set to 2.5A
 #define GRIND_CURRENT_HYSTERESIS_AMPS             (0.3f)
-#define GRIND_PID_DEFAULT_KP_MULTIPLIER           (2.2f)
+#define GRIND_PID_DEFAULT_KP_MULTIPLIER           (3.0f)
 #define GRIND_PID_DEFAULT_KI_MULTIPLIER           (1.0f)
 #define GRIND_ENGAGE_DELAY_MS                     (200)
 #define GRIND_RELEASE_DELAY_MS                    (200)
@@ -750,7 +750,7 @@ static void motor_encoder_calibrate_offset(void) {
 		mcconf_previous->foc_encoder_ratio = ratio;
 		mcconf_previous->foc_encoder_inverted = inverted;
 
-		if (conf_general_store_mc_configuration(mcconf_previous, mc_interface_get_motor_thread() == MOTOR_SELECTED)) {
+		if (conf_general_store_mc_configuration(mcconf_previous, (mc_interface_get_motor_thread() == MOTOR_SELECTED))) {
 			mc_interface_set_configuration(mcconf_previous);
 			is_encoder_done = true;
 		}
