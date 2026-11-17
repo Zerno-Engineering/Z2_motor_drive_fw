@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - develop
-
   workflow_dispatch:
 
 jobs:
@@ -32,7 +31,7 @@ jobs:
           cd uncrustify-uncrustify-0.67
           mkdir build
           cd build
-          cmake ..
+          cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
           cmake --build .
           cp uncrustify /usr/local/bin && chmod +x /usr/local/bin/uncrustify
           cd ../../
@@ -46,7 +45,6 @@ jobs:
           if [ $exitCode -eq 0 ]; then
               echo -e "${{ env.pass }} ${{ env.stepName }} ${{ env.end }}"
           else
-              # Print formatting differences
               echo -e "${{ env.info }} Format Difference ${{ env.end }}"
               git diff --color=always
               echo -e "${{ env.fail }} List of files with formatting errors: ${{ env.end }}"
